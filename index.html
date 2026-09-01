@@ -427,6 +427,8 @@
   // sans rendre la lecture molle sur un vrai changement de cap.
   let headingInitialized = false;
   const SMOOTHING = 0.25;
+  const SMOOTHING_OUTLIER = 0.08;
+  const OUTLIER_THRESHOLD = 45;
 
   function pushHeading(raw){
     raw = ((raw % 360) + 360) % 360;
@@ -437,7 +439,11 @@
       let diff = raw - currentHeadingMag;
       while(diff > 180) diff -= 360;
       while(diff < -180) diff += 360;
-      currentHeadingMag = ((currentHeadingMag + diff*SMOOTHING) % 360 + 360) % 360;
+      // Un ecart isole tres large (perturbation, sursaut du capteur) est amorti
+      // beaucoup plus fort qu'un ecart normal ; un vrai virage soutenu continue
+      // de produire de grands ecarts a chaque lecture et converge quand meme.
+      const factor = Math.abs(diff) > OUTLIER_THRESHOLD ? SMOOTHING_OUTLIER : SMOOTHING;
+      currentHeadingMag = ((currentHeadingMag + diff*factor) % 360 + 360) % 360;
     }
     render();
   }
@@ -445,12 +451,12 @@
   function handleOrientation(e){
     let heading;
     if(typeof e.webkitCompassHeading === 'number'){
-      // iOS : lecture directe de la boussole materielle, toujours fiable
+      // iOS : lecture directe de la boussole materielle
       heading = e.webkitCompassHeading;
-    } else if(e.absolute === true && e.alpha !== null){
-      // Android : n'accepter que les evenements "absolus" (repere Terre fixe).
-      // Les evenements non-absolus derivent progressivement et sont la cause
-      // la plus frequente de sauts brusques sur un mouvement pourtant leger.
+    } else if(e.alpha !== null){
+      // Android : on accepte la lecture qu'elle soit marquee "absolute" ou non,
+      // ce marqueur etant peu fiable sur certains appareils (toujours faux ou
+      // intermittent). Le lissage ci-dessus absorbe le bruit residuel.
       heading = 360 - e.alpha;
     } else {
       return;
