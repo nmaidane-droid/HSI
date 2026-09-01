@@ -259,8 +259,8 @@
     <div class="value" id="speed-val">—</div>
   </div>
   <div class="data-cell">
-    <div class="label">POSITION (LAT / LONG)</div>
-    <div class="value small" id="pos-val">—</div>
+    <div class="label">POSITION</div>
+    <div class="value small" id="pos-val" style="line-height:1.9;white-space:pre-line;">—</div>
   </div>
 </div>
 
@@ -506,6 +506,24 @@
     speedVal.textContent = Math.round(smoothedSpeedKmh) + ' km/h';
   }
 
+  // Format degres/minutes/secondes, ex: 33° 35' 24" N
+  function toDMS(value, posLetter, negLetter){
+    const dir = value >= 0 ? posLetter : negLetter;
+    const abs = Math.abs(value);
+    let d = Math.floor(abs);
+    let mFull = (abs - d) * 60;
+    let m = Math.floor(mFull);
+    let s = Math.round((mFull - m) * 60);
+    // report du retenu si l'arrondi des secondes atteint 60
+    if(s === 60){ s = 0; m += 1; }
+    if(m === 60){ m = 0; d += 1; }
+    return d + '° ' + m + "' " + s + '" ' + dir;
+  }
+
+  function formatLatLon(lat, lon){
+    return 'Latitude : ' + toDMS(lat, 'N', 'S') + '\nLongitude : ' + toDMS(lon, 'E', 'W');
+  }
+
   function requestLocation(){
     if(!('geolocation' in navigator)){
       posVal.textContent = 'indisponible';
@@ -514,7 +532,7 @@
     }
     navigator.geolocation.watchPosition(function(pos){
       const lat = pos.coords.latitude, lon = pos.coords.longitude;
-      posVal.textContent = lat.toFixed(4) + '° / ' + lon.toFixed(4) + '°';
+      posVal.textContent = formatLatLon(lat, lon);
 
       // Position peu precise (mauvais signal) : on ignore cette lecture pour la
       // vitesse plutot que d'afficher un pic errone, mais on garde la derniere
