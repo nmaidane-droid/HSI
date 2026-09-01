@@ -255,11 +255,11 @@
 
 <div class="data-grid">
   <div class="data-cell">
-    <div class="label">PRÉCISION</div>
-    <div class="value" id="accuracy-val">—</div>
+    <div class="label">VITESSE SOL</div>
+    <div class="value" id="speed-val">—</div>
   </div>
   <div class="data-cell">
-    <div class="label">POSITION (LAT / LON)</div>
+    <div class="label">POSITION (LAT / LONG)</div>
     <div class="value small" id="pos-val">—</div>
   </div>
 </div>
@@ -276,8 +276,8 @@
   const bugG = document.getElementById('bug');
   const degVal = document.getElementById('deg-val');
   const cardinalVal = document.getElementById('cardinal-val');
-  const accuracyVal = document.getElementById('accuracy-val');
   const posVal = document.getElementById('pos-val');
+  const speedVal = document.getElementById('speed-val');
   const sensorTag = document.getElementById('sensor-tag');
   const footnote = document.getElementById('footnote');
   const hdgKnob = document.getElementById('hdg-knob');
@@ -428,15 +428,10 @@
     let heading;
     if(typeof e.webkitCompassHeading === 'number'){
       heading = e.webkitCompassHeading;
-      if(typeof e.webkitCompassAccuracy === 'number'){
-        setAccuracy(e.webkitCompassAccuracy);
-      }
     } else if(e.absolute && e.alpha !== null){
       heading = 360 - e.alpha;
-      setAccuracy(null);
     } else if(e.alpha !== null){
       heading = 360 - e.alpha;
-      setAccuracy(null);
     } else {
       return;
     }
@@ -444,26 +439,28 @@
     render();
   }
 
-  function setAccuracy(deg){
-    if(deg === null || deg === undefined){
-      accuracyVal.textContent = 'non fournie';
-      return;
-    }
-    accuracyVal.textContent = '± ' + Math.round(deg) + '°';
-    accuracyVal.style.color = deg < 10 ? 'var(--green)' : (deg < 25 ? 'var(--amber)' : 'var(--red)');
-  }
-
   function requestLocation(){
     if(!('geolocation' in navigator)){
       posVal.textContent = 'indisponible';
+      speedVal.textContent = 'indisponible';
       return;
     }
-    navigator.geolocation.getCurrentPosition(function(pos){
+    navigator.geolocation.watchPosition(function(pos){
       const lat = pos.coords.latitude, lon = pos.coords.longitude;
       posVal.textContent = lat.toFixed(4) + '° / ' + lon.toFixed(4) + '°';
+
+      // coords.speed est en m/s, fourni par le GPS quand il y a un déplacement
+      // detectable en exterieur. Absent/instable a l'arret ou en interieur.
+      if(typeof pos.coords.speed === 'number' && pos.coords.speed !== null){
+        const kmh = pos.coords.speed * 3.6;
+        speedVal.textContent = Math.round(kmh) + ' km/h';
+      } else {
+        speedVal.textContent = 'indisponible';
+      }
     }, function(){
       posVal.textContent = 'refusé';
-    }, { enableHighAccuracy:true, timeout:8000 });
+      speedVal.textContent = 'refusé';
+    }, { enableHighAccuracy:true, maximumAge:2000, timeout:8000 });
   }
 
   function goLive(){
