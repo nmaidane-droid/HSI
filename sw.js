@@ -1,14 +1,14 @@
 // À incrémenter (hsi-v2, hsi-v3, ...) à chaque modification de index.html
-const VERSION = 'hsi-v1';
+const VERSION = 'hsi-v2';
 const CACHE_NAME = 'hsi-cache-' + VERSION;
 
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-maskable-512.png'
+  './icon-192.png',
+  './icon-512.png',
+  './icon-maskable-512.png'
 ];
 
 self.addEventListener('install', function(event){
