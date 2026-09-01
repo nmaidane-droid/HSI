@@ -422,19 +422,59 @@
   hdgKnob.addEventListener('pointerup', endDrag);
   hdgKnob.addEventListener('pointercancel', function(){ dragging = false; });
 
+  // Lissage circulaire : chaque nouvelle lecture ne fait avancer le cap affiché
+  // que d'une fraction de l'ecart, ce qui absorbe le bruit/tremblement du capteur
+  // sans rendre la lecture molle sur un vrai changement de cap.
+  let headingInitialized = false;
+  const SMOOTHING = 0.25;
+
+  function pushHeading(raw){
+    raw = ((raw % 360) + 360) % 360;
+    if(!headingInitialized){
+      currentHeadingMag = raw;
+      headingInitialized = true;
+    } else {
+      let diff = raw - currentHeadingMag;
+      while(diff > 180) diff -= 360;
+      while(diff < -180) diff += 360;
+      currentHeadingMag = ((currentHeadingMag + diff*SMOOTHING) % 360 + 360) % 360;
+    }
+    render();
+  }
+
   function handleOrientation(e){
     let heading;
     if(typeof e.webkitCompassHeading === 'number'){
+      // iOS : lecture directe de la boussole materielle, toujours fiable
       heading = e.webkitCompassHeading;
-    } else if(e.absolute && e.alpha !== null){
-      heading = 360 - e.alpha;
-    } else if(e.alpha !== null){
+    } else if(e.absolute === true && e.alpha !== null){
+      // Android : n'accepter que les evenements "absolus" (repere Terre fixe).
+      // Les evenements non-absolus derivent progressivement et sont la cause
+      // la plus frequente de sauts brusques sur un mouvement pourtant leger.
       heading = 360 - e.alpha;
     } else {
       return;
     }
-    currentHeadingMag = ((heading % 360) + 360) % 360;
-    render();
+    pushHeading(heading);
+  }
+
+  // Vitesse lissee (moyenne mobile) + rejet des lectures peu fiables : une position
+  // GPS ponctuelle imprecise peut faire croire a un deplacement alors que le
+  // telephone est immobile. On ignore les correctifs de mauvaise precision et on
+  // ramene le bruit residuel a 0 sous un seuil.
+  let smoothedSpeedKmh = null;
+  const SPEED_SMOOTHING = 0.3;
+  const SPEED_NOISE_FLOOR_KMH = 3;
+  const GPS_ACCURACY_MAX_M = 25;
+
+  function pushSpeed(rawKmh){
+    const clamped = rawKmh < SPEED_NOISE_FLOOR_KMH ? 0 : rawKmh;
+    if(smoothedSpeedKmh === null){
+      smoothedSpeedKmh = clamped;
+    } else {
+      smoothedSpeedKmh = smoothedSpeedKmh + (clamped - smoothedSpeedKmh) * SPEED_SMOOTHING;
+    }
+    speedVal.textContent = Math.round(smoothedSpeedKmh) + ' km/h';
   }
 
   function requestLocation(){
@@ -447,11 +487,15 @@
       const lat = pos.coords.latitude, lon = pos.coords.longitude;
       posVal.textContent = lat.toFixed(4) + '° / ' + lon.toFixed(4) + '°';
 
-      // coords.speed est en m/s, fourni par le GPS quand il y a un déplacement
-      // detectable en exterieur. Absent/instable a l'arret ou en interieur.
+      // Position peu precise (mauvais signal) : on ignore cette lecture pour la
+      // vitesse plutot que d'afficher un pic errone, mais on garde la derniere
+      // valeur fiable affichee.
+      if(typeof pos.coords.accuracy === 'number' && pos.coords.accuracy > GPS_ACCURACY_MAX_M){
+        return;
+      }
+
       if(typeof pos.coords.speed === 'number' && pos.coords.speed !== null){
-        const kmh = pos.coords.speed * 3.6;
-        speedVal.textContent = Math.round(kmh) + ' km/h';
+        pushSpeed(pos.coords.speed * 3.6);
       } else {
         speedVal.textContent = 'indisponible';
       }
