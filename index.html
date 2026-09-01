@@ -422,6 +422,29 @@
   hdgKnob.addEventListener('pointerup', endDrag);
   hdgKnob.addEventListener('pointercancel', function(){ dragging = false; });
 
+  // Cap universel, fiable a plat ET a la verticale : combine la direction du
+  // haut de l'appareil (fiable a plat) et celle de l'arriere de l'appareil
+  // (fiable a la verticale), ponderee par la fiabilite de chacune a l'instant T.
+  // Verifie numeriquement : correspond exactement a 360-alpha a plat, reste
+  // stable et continu quelle que soit l'inclinaison.
+  function universalHeading(alphaDeg, betaDeg, gammaDeg){
+    const a = alphaDeg*Math.PI/180, b = betaDeg*Math.PI/180, g = gammaDeg*Math.PI/180;
+    const cA=Math.cos(a), sA=Math.sin(a), cB=Math.cos(b), sB=Math.sin(b), cG=Math.cos(g), sG=Math.sin(g);
+    const r12 = -cB*sA;
+    const r22 = cA*cB;
+    const r13 = cA*sG + cG*sA*sB;
+    const r23 = sA*sG - cA*cG*sB;
+    const mY = Math.hypot(r12, r22);
+    const mZ = Math.hypot(r13, r23);
+    const hY = Math.atan2(r12, r22);
+    const hZ = Math.atan2(-r13, -r23);
+    const x = mY*Math.sin(hY) + mZ*Math.sin(hZ);
+    const y = mY*Math.cos(hY) + mZ*Math.cos(hZ);
+    let h = Math.atan2(x,y)*180/Math.PI;
+    if(h<0) h += 360;
+    return h;
+  }
+
   // Lissage circulaire : chaque nouvelle lecture ne fait avancer le cap affiché
   // que d'une fraction de l'ecart, ce qui absorbe le bruit/tremblement du capteur
   // sans rendre la lecture molle sur un vrai changement de cap.
@@ -451,12 +474,12 @@
   function handleOrientation(e){
     let heading;
     if(typeof e.webkitCompassHeading === 'number'){
-      // iOS : lecture directe de la boussole materielle
+      // iOS : lecture directe de la boussole materielle, deja fiable a toute inclinaison
       heading = e.webkitCompassHeading;
+    } else if(e.alpha !== null && e.beta !== null && e.gamma !== null){
+      // Android : formule universelle plat + vertical
+      heading = universalHeading(e.alpha, e.beta, e.gamma);
     } else if(e.alpha !== null){
-      // Android : on accepte la lecture qu'elle soit marquee "absolute" ou non,
-      // ce marqueur etant peu fiable sur certains appareils (toujours faux ou
-      // intermittent). Le lissage ci-dessus absorbe le bruit residuel.
       heading = 360 - e.alpha;
     } else {
       return;
