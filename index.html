@@ -208,15 +208,6 @@
     font-variant-numeric:tabular-nums;
   }
   .data-cell .value.small{font-size:12.5px;color:var(--text-dim);}
-
-  .footnote{
-    margin-top:16px;
-    font-size:11px;
-    color:var(--text-dim);
-    text-align:center;
-    max-width:340px;
-    line-height:1.5;
-  }
 </style>
 </head>
 <body>
@@ -264,10 +255,6 @@
   </div>
 </div>
 
-<p class="footnote" id="footnote">
-  Capteur activé automatiquement à l'ouverture. Tenez l'appareil à plat, loin de tout objet métallique, pour une lecture stable. Tournez le HDG SET pour sélectionner un cap.
-</p>
-
 <script>
 (function(){
   const dial = document.getElementById('dial');
@@ -279,7 +266,6 @@
   const posVal = document.getElementById('pos-val');
   const speedVal = document.getElementById('speed-val');
   const sensorTag = document.getElementById('sensor-tag');
-  const footnote = document.getElementById('footnote');
   const hdgKnob = document.getElementById('hdg-knob');
 
   const cx = 150, cy = 150;
@@ -556,7 +542,6 @@
     sensorActive = true;
     sensorTag.textContent = 'CAPTEUR ACTIF';
     sensorTag.classList.add('ok');
-    footnote.textContent = 'Lecture en temps réel. Éloignez le téléphone des aimants et objets métalliques pour une précision optimale.';
     requestLocation();
   }
 
@@ -574,7 +559,6 @@
     } else {
       sensorTag.textContent = 'AUCUN CAPTEUR';
       sensorTag.classList.add('err');
-      footnote.textContent = "Aucun capteur d'orientation détecté sur cet appareil.";
     }
   }
 
