@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Boussole — HSI</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0c0d0e">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <style>
   :root{
     --bezel-dark:#1c1e1f;
@@ -129,7 +133,7 @@
     width:52px;height:52px;
     border-radius:50%;
     background:radial-gradient(circle at 35% 30%, #333 0%, #0f0f0f 100%);
-    box-shadow:0 0 0 1px #000, inset 0 1px 2px rgba(255,255,255,0.08), 0 3px 6px rgba(0,0,0,0.5);
+    box-shadow:0 0 0 1px #000, 0 0 0 2px var(--white), inset 0 1px 2px rgba(255,255,255,0.08), 0 3px 6px rgba(0,0,0,0.5);
     display:flex;
     align-items:center;
     justify-content:center;
@@ -141,13 +145,13 @@
     width:0;height:0;
     border-left:7px solid transparent;
     border-right:7px solid transparent;
-    border-top:11px solid #b8c95a;
+    border-top:11px solid var(--amber);
   }
   .knob .hdg-label{
     font-size:9px;
     font-weight:700;
     letter-spacing:0.06em;
-    color:var(--text-dim);
+    color:var(--amber);
     text-align:center;
     line-height:1.2;
   }
@@ -579,13 +583,6 @@
   function autoStart(){
     if(sensorActive) return;
 
-    if(location.protocol !== 'https:' && location.hostname !== 'localhost'){
-      sensorTag.textContent = 'HTTPS REQUIS';
-      sensorTag.classList.add('err');
-      footnote.textContent = "Le capteur d'orientation exige une page servie en HTTPS. Ouvrez cette boussole depuis son adresse en ligne, pas depuis un fichier local.";
-      return;
-    }
-
     // Android : deviceorientationabsolute est le flux fiable (cap vrai/vrai-relatif au monde).
     // deviceorientation seul sert de repli si absolute n'est pas exposé.
     if('ondeviceorientationabsolute' in window){
@@ -605,6 +602,12 @@
   render();
   autoStart();
 })();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  });
+}
 </script>
 </body>
 </html>
