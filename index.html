@@ -78,6 +78,11 @@
     border-radius:50%;
     background:radial-gradient(circle at 40% 30%, var(--card-face) 0%, var(--card-face-2) 100%);
     box-shadow:inset 0 0 0 1px #000, inset 0 2px 14px rgba(0,0,0,0.5);
+  }
+  .dial-mask{
+    position:absolute;
+    top:0;left:0;width:100%;height:100%;
+    border-radius:50%;
     overflow:hidden;
   }
 
@@ -291,14 +296,18 @@
 
 <div class="instrument-wrap">
   <div class="card-face">
-    <svg id="dial" viewBox="0 0 300 300">
-      <circle cx="150" cy="150" r="140" fill="none" stroke="#00000033" stroke-width="1"/>
-      <g id="ticks"></g>
-      <g id="labels"></g>
-      <g id="bug"></g>
-      <polygon points="150,150 138,168 150,162 162,168" fill="#f2f0e8" opacity="0.9"/>
-      <polygon points="150,150 138,132 150,138 162,132" fill="#f2f0e8" opacity="0.9"/>
-    </svg>
+    <div class="dial-mask">
+      <svg id="dial" viewBox="0 0 300 300">
+        <circle cx="150" cy="150" r="140" fill="none" stroke="#00000033" stroke-width="1"/>
+        <g id="ticks"></g>
+        <g id="bug"></g>
+        <polygon points="150,150 138,168 150,162 162,168" fill="#f2f0e8" opacity="0.9"/>
+        <polygon points="150,150 138,132 150,138 162,132" fill="#f2f0e8" opacity="0.9"/>
+      </svg>
+      <svg id="dial-labels" viewBox="0 0 300 300" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
+        <g id="labels"></g>
+      </svg>
+    </div>
     <div class="lubber-line"></div>
     <div class="center-hub"></div>
     <div class="knob left">
@@ -401,12 +410,12 @@
     ticksG.appendChild(line);
   }
 
+  // Les chiffres sont crees une seule fois mais repositionnes a chaque cap :
+  // ils tournent AUTOUR du centre comme le cadran, mais restent toujours a l'horizontale
+  // (contrairement aux graduations, qui elles pivotent avec la carte).
+  const labelDefs = [];
   for(let deg=0; deg<360; deg+=30){
-    const rad = (deg-90) * Math.PI/180;
-    const r = 95;
-    const x = cx + r*Math.cos(rad), y = cy + r*Math.sin(rad);
     const t = document.createElementNS('http://www.w3.org/2000/svg','text');
-    t.setAttribute('x',x);t.setAttribute('y',y+7);
     t.setAttribute('text-anchor','middle');
     t.setAttribute('font-family',"'SF Mono','Roboto Mono',monospace");
     const isCardinal = deg % 90 === 0;
@@ -415,6 +424,20 @@
     t.setAttribute('fill', deg===0 ? '#c73e3e' : '#f2f0e8');
     t.textContent = labelForTick(deg);
     labelsG.appendChild(t);
+    labelDefs.push({ baseDeg: deg, el: t });
+  }
+
+  function positionLabels(display){
+    const r = 95;
+    labelDefs.forEach(function(item){
+      const screenDeg = item.baseDeg - display;
+      const rad = (screenDeg - 90) * Math.PI/180;
+      const x = cx + r*Math.cos(rad), y = cy + r*Math.sin(rad);
+      item.el.setAttribute('x', x);
+      item.el.setAttribute('y', y + 7);
+      // couleur rouge uniquement quand ce chiffre EST le N (peu importe sa position ecran)
+      item.el.setAttribute('fill', item.baseDeg === 0 ? '#c73e3e' : '#f2f0e8');
+    });
   }
 
   const dirNames = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];
@@ -449,6 +472,7 @@
       display = ((currentHeadingMag + declination) % 360 + 360) % 360;
     }
     dial.style.transform = 'rotate(' + (-display) + 'deg)';
+    positionLabels(display);
     degVal.textContent = String(Math.round(display)).padStart(3,'0');
     cardinalVal.textContent = dirFor(display);
   }
