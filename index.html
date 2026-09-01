@@ -179,20 +179,22 @@
   .data-grid{
     margin-top:14px;
     width:min(88vw, 380px);
-    display:grid;
-    grid-template-columns:1fr 1fr;
+    display:flex;
+    flex-direction:column;
     gap:1px;
     background:#232526;
     border:1px solid #2a2c2d;
     border-radius:10px;
-    overflow:hidden;
   }
   .data-cell{
     background:#141516;
     padding:12px 14px;
   }
+  .data-cell:first-child{border-radius:9px 9px 0 0;}
+  .data-cell:last-child{border-radius:0 0 9px 9px;}
   .data-cell .label{
     font-size:10.5px;
+    line-height:1.6;
     letter-spacing:0.08em;
     color:var(--text-dim);
     margin-bottom:5px;
@@ -201,6 +203,7 @@
   .data-cell .value{
     font-family:var(--mono);
     font-size:15px;
+    line-height:1.6;
     color:var(--text-bright);
     font-variant-numeric:tabular-nums;
   }
@@ -256,12 +259,8 @@
     <div class="value" id="accuracy-val">—</div>
   </div>
   <div class="data-cell">
-    <div class="label">LATITUDE</div>
-    <div class="value small" id="lat-val">—</div>
-  </div>
-  <div class="data-cell" style="grid-column:1 / -1;">
-    <div class="label">LONGITUDE</div>
-    <div class="value small" id="lon-val">—</div>
+    <div class="label">POSITION (LAT / LON)</div>
+    <div class="value small" id="pos-val">—</div>
   </div>
 </div>
 
@@ -278,8 +277,7 @@
   const degVal = document.getElementById('deg-val');
   const cardinalVal = document.getElementById('cardinal-val');
   const accuracyVal = document.getElementById('accuracy-val');
-  const latVal = document.getElementById('lat-val');
-  const lonVal = document.getElementById('lon-val');
+  const posVal = document.getElementById('pos-val');
   const sensorTag = document.getElementById('sensor-tag');
   const footnote = document.getElementById('footnote');
   const hdgKnob = document.getElementById('hdg-knob');
@@ -457,17 +455,14 @@
 
   function requestLocation(){
     if(!('geolocation' in navigator)){
-      latVal.textContent = 'indisponible';
-      lonVal.textContent = 'indisponible';
+      posVal.textContent = 'indisponible';
       return;
     }
     navigator.geolocation.getCurrentPosition(function(pos){
       const lat = pos.coords.latitude, lon = pos.coords.longitude;
-      latVal.textContent = lat.toFixed(4) + '°';
-      lonVal.textContent = lon.toFixed(4) + '°';
+      posVal.textContent = lat.toFixed(4) + '° / ' + lon.toFixed(4) + '°';
     }, function(){
-      latVal.textContent = 'refusé';
-      lonVal.textContent = 'refusé';
+      posVal.textContent = 'refusé';
     }, { enableHighAccuracy:true, timeout:8000 });
   }
 
