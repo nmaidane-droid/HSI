@@ -101,10 +101,10 @@
     position:absolute;
     top:2px; left:50%;
     width:3px; height:26px;
-    background:var(--amber);
+    background:var(--green);
     transform:translateX(-50%);
     z-index:5;
-    box-shadow:0 0 4px rgba(232,163,61,0.5);
+    box-shadow:0 0 4px rgba(74,154,106,0.5);
   }
   .lubber-line::after{
     content:"";
@@ -114,7 +114,7 @@
     width:0;height:0;
     border-left:6px solid transparent;
     border-right:6px solid transparent;
-    border-top:8px solid var(--amber);
+    border-top:8px solid var(--green);
   }
 
   .center-hub{
@@ -130,6 +130,7 @@
   .knob{
     position:absolute;
     bottom:14px;
+    right:14px;
     width:52px;height:52px;
     border-radius:50%;
     background:radial-gradient(circle at 35% 30%, #333 0%, #0f0f0f 100%);
@@ -138,14 +139,9 @@
     align-items:center;
     justify-content:center;
     z-index:7;
-  }
-  .knob.left{left:14px;}
-  .knob.right{right:14px;}
-  .knob .arrow-down{
-    width:0;height:0;
-    border-left:7px solid transparent;
-    border-right:7px solid transparent;
-    border-top:11px solid var(--amber);
+    touch-action:none;
+    user-select:none;
+    transform-origin:50% 50%;
   }
   .knob .hdg-label{
     font-size:9px;
@@ -155,7 +151,6 @@
     text-align:center;
     line-height:1.2;
   }
-  .knob:active{transform:scale(0.95);}
 
   .readout{
     margin-top:26px;
@@ -179,76 +174,6 @@
     letter-spacing:0.08em;
     color:var(--amber);
     font-weight:600;
-  }
-
-  .hdg-bug-panel{
-    margin-top:18px;
-    width:min(88vw, 380px);
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    background:#141516;
-    border:1px solid #2a2c2d;
-    border-radius:10px;
-    padding:12px 16px;
-  }
-  .hdg-bug-panel .label{
-    font-size:11px;
-    letter-spacing:0.08em;
-    color:var(--text-dim);
-    font-weight:600;
-  }
-  .hdg-bug-panel .value{
-    font-family:var(--mono);
-    font-size:20px;
-    color:var(--green);
-    font-variant-numeric:tabular-nums;
-  }
-  .hdg-bug-panel .steppers{
-    display:flex;
-    gap:8px;
-  }
-  .hdg-bug-panel button{
-    width:34px;height:34px;
-    border-radius:8px;
-    background:#232526;
-    border:1px solid #34373a;
-    color:var(--text-bright);
-    font-size:18px;
-    font-weight:600;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-  }
-  .hdg-bug-panel button:active{transform:scale(0.92);}
-
-  .mode-toggle{
-    margin-top:14px;
-    display:flex;
-    background:#151617;
-    border:1px solid #2a2c2d;
-    border-radius:8px;
-    padding:3px;
-    gap:3px;
-    width:min(88vw, 380px);
-  }
-  .mode-toggle button{
-    flex:1;
-    padding:9px 4px;
-    background:transparent;
-    border:none;
-    border-radius:6px;
-    color:var(--text-dim);
-    font-size:12px;
-    font-family:var(--mono);
-    letter-spacing:0.02em;
-    font-weight:600;
-    white-space:nowrap;
-    line-height:1.3;
-  }
-  .mode-toggle button.active{
-    background:#2a2c2d;
-    color:var(--amber);
   }
 
   .data-grid{
@@ -314,9 +239,6 @@
     </div>
     <div class="lubber-line"></div>
     <div class="center-hub"></div>
-    <div class="knob left">
-      <span class="arrow-down"></span>
-    </div>
     <div class="knob right" id="hdg-knob">
       <span class="hdg-label">HDG<br>SET</span>
     </div>
@@ -328,43 +250,23 @@
   <div class="cardinal" id="cardinal-val">NORD</div>
 </div>
 
-<div class="hdg-bug-panel">
-  <div>
-    <div class="label">CAP SÉLECTIONNÉ (HDG BUG)</div>
-    <div class="value" id="bug-val">000°</div>
-  </div>
-  <div class="steppers">
-    <button id="bug-minus">−</button>
-    <button id="bug-plus">+</button>
-  </div>
-</div>
-
-<div class="mode-toggle">
-  <button id="btn-mag" class="active">CAP MAGNÉTIQUE</button>
-  <button id="btn-true">CAP VRAI</button>
-</div>
-
 <div class="data-grid">
   <div class="data-cell">
     <div class="label">PRÉCISION</div>
     <div class="value" id="accuracy-val">—</div>
   </div>
   <div class="data-cell">
-    <div class="label">DÉCLINAISON</div>
-    <div class="value" id="declination-val">—</div>
-  </div>
-  <div class="data-cell">
     <div class="label">LATITUDE</div>
     <div class="value small" id="lat-val">—</div>
   </div>
-  <div class="data-cell">
+  <div class="data-cell" style="grid-column:1 / -1;">
     <div class="label">LONGITUDE</div>
     <div class="value small" id="lon-val">—</div>
   </div>
 </div>
 
 <p class="footnote" id="footnote">
-  Capteur activé automatiquement à l'ouverture. Tenez l'appareil à plat, loin de tout objet métallique, pour une lecture stable. Réglez le repère de cap (HDG bug) avec les boutons + / −.
+  Capteur activé automatiquement à l'ouverture. Tenez l'appareil à plat, loin de tout objet métallique, pour une lecture stable. Tournez le HDG SET pour sélectionner un cap.
 </p>
 
 <script>
@@ -376,16 +278,10 @@
   const degVal = document.getElementById('deg-val');
   const cardinalVal = document.getElementById('cardinal-val');
   const accuracyVal = document.getElementById('accuracy-val');
-  const declinationVal = document.getElementById('declination-val');
   const latVal = document.getElementById('lat-val');
   const lonVal = document.getElementById('lon-val');
   const sensorTag = document.getElementById('sensor-tag');
   const footnote = document.getElementById('footnote');
-  const btnMag = document.getElementById('btn-mag');
-  const btnTrue = document.getElementById('btn-true');
-  const bugVal = document.getElementById('bug-val');
-  const bugMinus = document.getElementById('bug-minus');
-  const bugPlus = document.getElementById('bug-plus');
   const hdgKnob = document.getElementById('hdg-knob');
 
   const cx = 150, cy = 150;
@@ -448,8 +344,6 @@
   function dirFor(h){ return dirNames[Math.round(h/22.5)%16]; }
 
   let currentHeadingMag = 0;
-  let declination = null;
-  let showTrue = false;
   let sensorActive = false;
   let bugHeading = 0;
 
@@ -464,17 +358,14 @@
     const p3x = x - 9*Math.cos(rad) - 8*Math.cos(innerAngle), p3y = y - 9*Math.sin(rad) - 8*Math.sin(innerAngle);
     const tri = document.createElementNS('http://www.w3.org/2000/svg','polygon');
     tri.setAttribute('points', p1x+','+p1y+' '+p2x+','+p2y+' '+p3x+','+p3y);
-    tri.setAttribute('fill', '#4a9a6a');
+    tri.setAttribute('fill', '#e8a33d');
     tri.setAttribute('stroke', '#0c0d0e');
     tri.setAttribute('stroke-width', '1');
     bugG.appendChild(tri);
   }
 
   function render(){
-    let display = currentHeadingMag;
-    if(showTrue && declination !== null){
-      display = ((currentHeadingMag + declination) % 360 + 360) % 360;
-    }
+    const display = currentHeadingMag;
     dial.style.transform = 'rotate(' + (-display) + 'deg)';
     positionLabels(display);
     degVal.textContent = String(Math.round(display)).padStart(3,'0');
@@ -483,30 +374,57 @@
 
   function setBug(h){
     bugHeading = ((h % 360) + 360) % 360;
-    bugVal.textContent = String(Math.round(bugHeading)).padStart(3,'0') + '°';
     renderBug();
   }
 
-  bugMinus.addEventListener('click', function(){ setBug(bugHeading - 5); });
-  bugPlus.addEventListener('click', function(){ setBug(bugHeading + 5); });
-  hdgKnob.addEventListener('click', function(){ setBug(currentHeadingMag); });
+  // Molette HDG SET tactile : on la tourne du doigt autour de son centre,
+  // le repère de cap (bug) suit exactement la rotation. Un simple tap (sans
+  // glisser) recale le repère sur le cap actuel, comme avant.
+  let knobAngle = 0;
+  let dragging = false;
+  let dragMoved = false;
+  let lastPointerAngle = 0;
 
-  btnMag.addEventListener('click', function(){
-    showTrue = false;
-    btnMag.classList.add('active');
-    btnTrue.classList.remove('active');
-    render();
+  function angleFromCenter(clientX, clientY){
+    const rect = hdgKnob.getBoundingClientRect();
+    const ccx = rect.left + rect.width/2, ccy = rect.top + rect.height/2;
+    return Math.atan2(clientY - ccy, clientX - ccx) * 180/Math.PI;
+  }
+
+  hdgKnob.addEventListener('pointerdown', function(e){
+    dragging = true;
+    dragMoved = false;
+    lastPointerAngle = angleFromCenter(e.clientX, e.clientY);
+    hdgKnob.setPointerCapture(e.pointerId);
   });
-  btnTrue.addEventListener('click', function(){
-    if(declination === null){
-      footnote.textContent = 'Déclinaison indisponible (position GPS ou réseau requis). Cap vrai non calculable pour le moment.';
-      return;
+
+  // Sensibilité de rotation : 0.45° de repère par degré tourné du doigt.
+  // En dessous de 1:1 pour permettre un réglage plus fin et précis.
+  const KNOB_SENSITIVITY = 0.45;
+
+  hdgKnob.addEventListener('pointermove', function(e){
+    if(!dragging) return;
+    const a = angleFromCenter(e.clientX, e.clientY);
+    let delta = a - lastPointerAngle;
+    while(delta > 180) delta -= 360;
+    while(delta < -180) delta += 360;
+    if(Math.abs(delta) > 0.5){
+      dragMoved = true;
+      knobAngle += delta;
+      hdgKnob.style.transform = 'rotate(' + knobAngle + 'deg)';
+      setBug(bugHeading + delta * KNOB_SENSITIVITY);
+      lastPointerAngle = a;
     }
-    showTrue = true;
-    btnTrue.classList.add('active');
-    btnMag.classList.remove('active');
-    render();
   });
+
+  function endDrag(){
+    if(dragging && !dragMoved){
+      setBug(currentHeadingMag);
+    }
+    dragging = false;
+  }
+  hdgKnob.addEventListener('pointerup', endDrag);
+  hdgKnob.addEventListener('pointercancel', function(){ dragging = false; });
 
   function handleOrientation(e){
     let heading;
@@ -537,24 +455,6 @@
     accuracyVal.style.color = deg < 10 ? 'var(--green)' : (deg < 25 ? 'var(--amber)' : 'var(--red)');
   }
 
-  function fetchDeclination(lat, lon){
-    const today = new Date();
-    const url = 'https://www.ngdc.noaa.gov/geomag-web/calculators/calculateDeclination?lat1=' + lat +
-      '&lon1=' + lon + '&resultFormat=json&startYear=' + today.getFullYear() +
-      '&startMonth=' + (today.getMonth()+1) + '&startDay=' + today.getDate() +
-      '&key=zNEw7';
-    fetch(url).then(function(r){ return r.json(); }).then(function(data){
-      if(data && data.result && data.result[0] && typeof data.result[0].declination === 'number'){
-        declination = data.result[0].declination;
-        declinationVal.textContent = (declination >= 0 ? '+' : '') + declination.toFixed(1) + '°';
-      } else {
-        declinationVal.textContent = 'indisponible';
-      }
-    }).catch(function(){
-      declinationVal.textContent = 'indisponible';
-    });
-  }
-
   function requestLocation(){
     if(!('geolocation' in navigator)){
       latVal.textContent = 'indisponible';
@@ -565,7 +465,6 @@
       const lat = pos.coords.latitude, lon = pos.coords.longitude;
       latVal.textContent = lat.toFixed(4) + '°';
       lonVal.textContent = lon.toFixed(4) + '°';
-      fetchDeclination(lat, lon);
     }, function(){
       latVal.textContent = 'refusé';
       lonVal.textContent = 'refusé';
