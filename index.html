@@ -317,12 +317,12 @@
     t.setAttribute('text-anchor','middle');
     t.setAttribute('font-family',"'SF Mono','Roboto Mono',monospace");
     const isCardinal = deg % 90 === 0;
-    t.setAttribute('font-size', isCardinal ? '24' : '17');
+    t.setAttribute('font-size', isCardinal ? '24' : '14');
     t.setAttribute('font-weight', '700');
-    t.setAttribute('fill', deg===0 ? '#c73e3e' : '#f2f0e8');
+    t.setAttribute('fill', isCardinal ? '#e8a33d' : '#f2f0e8');
     t.textContent = labelForTick(deg);
     labelsG.appendChild(t);
-    labelDefs.push({ baseDeg: deg, el: t });
+    labelDefs.push({ baseDeg: deg, el: t, isCardinal: isCardinal });
   }
 
   function positionLabels(display){
@@ -333,8 +333,6 @@
       const x = cx + r*Math.cos(rad), y = cy + r*Math.sin(rad);
       item.el.setAttribute('x', x);
       item.el.setAttribute('y', y + 7);
-      // couleur rouge uniquement quand ce chiffre EST le N (peu importe sa position ecran)
-      item.el.setAttribute('fill', item.baseDeg === 0 ? '#c73e3e' : '#f2f0e8');
     });
   }
 
