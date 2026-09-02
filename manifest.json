@@ -1,7 +1,7 @@
 {
   "name": "Boussole — HSI",
   "short_name": "HSI",
-  "description": "Boussole numérique style instrument d'aviation (HSI) avec capteur du téléphone",
+  "description": "Boussole numérique style instrument d'aviation (HSI) avec position du Soleil et de la Lune, phase lunaire",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -224,8 +224,6 @@
         <circle cx="150" cy="150" r="140" fill="none" stroke="#00000033" stroke-width="1"/>
         <g id="ticks"></g>
         <g id="bug"></g>
-        <g id="sun-marker"></g>
-        <g id="moon-marker"></g>
         <polygon points="150,150 138,168 150,162 162,168" fill="#f2f0e8" opacity="0.9"/>
         <polygon points="150,150 138,132 150,138 162,132" fill="#f2f0e8" opacity="0.9"/>
       </svg>
@@ -233,6 +231,10 @@
         <g id="labels"></g>
       </svg>
     </div>
+    <svg id="celestial-layer" viewBox="0 0 300 300" style="position:absolute;inset:20px;width:calc(100% - 40px);height:calc(100% - 40px);overflow:visible;pointer-events:none;">
+      <g id="sun-marker"></g>
+      <g id="moon-marker"></g>
+    </svg>
     <div class="lubber-line"></div>
     <div class="center-hub"></div>
     <div class="knob right" id="hdg-knob">
@@ -241,12 +243,9 @@
   </div>
 </div>
 
-<div class="readout" style="flex-direction:row; align-items:center; justify-content:center; gap:22px;">
-  <div style="display:flex; flex-direction:column; align-items:center;">
-    <div class="deg"><span id="deg-val">000</span><span class="unit">°</span></div>
-    <div class="cardinal" id="cardinal-val">NORD</div>
-  </div>
-  <canvas id="moon-phase" width="88" height="88" style="width:44px;height:44px;"></canvas>
+<div class="readout">
+  <div class="deg"><span id="deg-val">000</span><span class="unit">°</span></div>
+  <div class="cardinal" id="cardinal-val">NORD</div>
 </div>
 
 <div class="data-grid">
@@ -478,72 +477,107 @@
     bugG.appendChild(tri);
   }
 
-  // Repere Soleil/Lune sur le cadran : meme principe que le bug HDG (place a
-  // l'azimut reel, le groupe entier tourne avec le cadran via le CSS deja en
-  // place). Jaune si le Soleil est au-dessus de l'horizon, blanc pour la Lune,
-  // gris pour l'un ou l'autre sous l'horizon.
+  // Reperes Soleil/Lune HORS du cadran, dans une couche SVG non rognee, a
+  // laquelle on applique la meme rotation que le cadran a chaque mise a jour
+  // du cap (voir render()). Jaune si le Soleil est au-dessus de l'horizon,
+  // gris en dessous. La Lune est un rendu reel (canvas ombre), pas une forme
+  // SVG plate, integre via foreignObject pour tourner avec le reste.
+  const celestialLayer = document.getElementById('celestial-layer');
   const sunMarkerG = document.getElementById('sun-marker');
   const moonMarkerG = document.getElementById('moon-marker');
   const GREY_BELOW_HORIZON = '#6b6f72';
+  const CELESTIAL_R = 160; // hors du cercle du cadran (bord a r=150), dans le renfoncement du boitier
 
-  function renderCelestialMarker(group, az, alt, colorAbove, radius){
-    group.innerHTML = '';
+  function renderSunMarker(az, alt){
+    sunMarkerG.innerHTML = '';
     const rad = (az-90) * Math.PI/180;
-    const r = 124;
-    const x = cx + r*Math.cos(rad), y = cy + r*Math.sin(rad);
+    const x = cx + CELESTIAL_R*Math.cos(rad), y = cy + CELESTIAL_R*Math.sin(rad);
+    const color = alt > 0 ? '#e8a33d' : GREY_BELOW_HORIZON;
     const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
     circle.setAttribute('cx', x); circle.setAttribute('cy', y);
-    circle.setAttribute('r', radius);
-    circle.setAttribute('fill', alt > 0 ? colorAbove : GREY_BELOW_HORIZON);
+    circle.setAttribute('r', 11);
+    circle.setAttribute('fill', color);
     circle.setAttribute('stroke', '#0c0d0e');
-    circle.setAttribute('stroke-width', '1');
-    group.appendChild(circle);
+    circle.setAttribute('stroke-width', '1.2');
+    sunMarkerG.appendChild(circle);
+    const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+    label.setAttribute('x', x); label.setAttribute('y', y+4.5);
+    label.setAttribute('text-anchor','middle');
+    label.setAttribute('font-size','13');
+    label.setAttribute('font-weight','700');
+    label.setAttribute('font-family',"'SF Mono','Roboto Mono',monospace");
+    label.setAttribute('fill', alt > 0 ? '#1a1a1a' : '#2c2c2c');
+    label.textContent = 'S';
+    sunMarkerG.appendChild(label);
   }
-
-  function renderSunMarker(az, alt){ renderCelestialMarker(sunMarkerG, az, alt, '#e8a33d', 7); }
-  function renderMoonMarker(az, alt){ renderCelestialMarker(moonMarkerG, az, alt, '#f2f0e8', 6); }
 
   // Icone de phase lunaire : ombrage reel par canvas (terminateur elliptique),
   // pas une forme SVG plate. illum = fraction eclairee (0=nouvelle, 1=pleine).
-  const moonCanvas = document.getElementById('moon-phase');
-  const moonCtx = moonCanvas.getContext('2d');
-
-  function drawMoonPhase(illum, waxing, visible){
-    const W = moonCanvas.width, H = moonCanvas.height;
-    const mcx = W/2, mcy = H/2, R = W/2 - 3;
+  function drawMoonPhase(canvas, illum, waxing, visible){
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const mcx = W/2, mcy = H/2, R = W/2 - 2;
     const litColor = visible ? '#f2f0e8' : GREY_BELOW_HORIZON;
     const darkColor = '#17181a';
 
-    moonCtx.clearRect(0,0,W,H);
-    moonCtx.save();
-    moonCtx.beginPath(); moonCtx.arc(mcx,mcy,R,0,2*Math.PI); moonCtx.clip();
+    ctx.clearRect(0,0,W,H);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(mcx,mcy,R,0,2*Math.PI); ctx.clip();
 
-    // legere ombre spherique meme sur la face sombre, pour un rendu moins plat
-    const grad = moonCtx.createRadialGradient(mcx-R*0.3,mcy-R*0.3,R*0.1,mcx,mcy,R*1.1);
+    const grad = ctx.createRadialGradient(mcx-R*0.3,mcy-R*0.3,R*0.1,mcx,mcy,R*1.1);
     grad.addColorStop(0, darkColor);
     grad.addColorStop(1, '#000000');
-    moonCtx.fillStyle = grad;
-    moonCtx.fillRect(0,0,W,H);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,W,H);
 
-    moonCtx.fillStyle = litColor;
-    moonCtx.beginPath();
-    if(waxing){ moonCtx.arc(mcx,mcy,R,-Math.PI/2,Math.PI/2); }
-    else { moonCtx.arc(mcx,mcy,R,Math.PI/2,3*Math.PI/2); }
-    moonCtx.closePath();
-    moonCtx.fill();
+    ctx.fillStyle = litColor;
+    ctx.beginPath();
+    if(waxing){ ctx.arc(mcx,mcy,R,-Math.PI/2,Math.PI/2); }
+    else { ctx.arc(mcx,mcy,R,Math.PI/2,3*Math.PI/2); }
+    ctx.closePath();
+    ctx.fill();
 
     const ew = R*Math.abs(1-2*illum);
-    moonCtx.beginPath();
-    moonCtx.ellipse(mcx,mcy,ew,R,0,0,2*Math.PI);
-    moonCtx.fillStyle = illum < 0.5 ? darkColor : litColor;
-    moonCtx.fill();
+    ctx.beginPath();
+    ctx.ellipse(mcx,mcy,ew,R,0,0,2*Math.PI);
+    ctx.fillStyle = illum < 0.5 ? darkColor : litColor;
+    ctx.fill();
+    ctx.restore();
 
-    moonCtx.restore();
-    moonCtx.beginPath();
-    moonCtx.arc(mcx,mcy,R,0,2*Math.PI);
-    moonCtx.strokeStyle = 'rgba(242,240,232,0.15)';
-    moonCtx.lineWidth = 1;
-    moonCtx.stroke();
+    ctx.beginPath();
+    ctx.arc(mcx,mcy,R,0,2*Math.PI);
+    ctx.strokeStyle = 'rgba(242,240,232,0.2)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Lettre L : trace blanc epais puis remplissage sombre, pour rester
+    // lisible aussi bien sur la portion claire que sombre du disque.
+    ctx.font = "700 " + Math.round(R*0.85) + "px 'SF Mono','Roboto Mono',monospace";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.strokeText('L', mcx, mcy+1);
+    ctx.fillStyle = '#101112';
+    ctx.fillText('L', mcx, mcy+1);
+  }
+
+  function renderMoonMarker(az, alt, illum, waxing){
+    moonMarkerG.innerHTML = '';
+    const rad = (az-90) * Math.PI/180;
+    const size = 26;
+    const x = cx + CELESTIAL_R*Math.cos(rad), y = cy + CELESTIAL_R*Math.sin(rad);
+    const fo = document.createElementNS('http://www.w3.org/2000/svg','foreignObject');
+    fo.setAttribute('x', x - size/2);
+    fo.setAttribute('y', y - size/2);
+    fo.setAttribute('width', size);
+    fo.setAttribute('height', size);
+    const canvas = document.createElement('canvas');
+    canvas.width = size*2; canvas.height = size*2;
+    canvas.style.width = size+'px'; canvas.style.height = size+'px';
+    fo.appendChild(canvas);
+    moonMarkerG.appendChild(fo);
+    drawMoonPhase(canvas, illum, waxing, alt > 0);
   }
 
   let lastKnownLat = null, lastKnownLon = null;
@@ -556,13 +590,15 @@
     const sun = ASTRO.sunPosition(lat, lon);
     const moon = ASTRO.moonPosition(lat, lon);
     renderSunMarker(sun.az, sun.alt);
-    renderMoonMarker(moon.az, moon.alt);
-    drawMoonPhase(moon.illum, moon.waxing, moon.alt > 0);
+    renderMoonMarker(moon.az, moon.alt, moon.illum, moon.waxing);
   }
 
   function render(){
     const display = currentHeadingMag;
-    dial.style.transform = 'rotate(' + (-display) + 'deg)';
+    const rot = 'rotate(' + (-display) + 'deg)';
+    dial.style.transform = rot;
+    celestialLayer.style.transform = rot;
+    celestialLayer.style.transformOrigin = '50% 50%';
     positionLabels(display);
     degVal.textContent = String(Math.round(display)).padStart(3,'0');
     cardinalVal.textContent = dirFor(display);
