@@ -1328,6 +1328,9 @@
     positionLabels(display);
     degVal.textContent = String(Math.round(display)).padStart(3,'0');
     cardinalVal.textContent = dirFor(display);
+    if(mapMode === 'offline' && offlineMarker && offlineMarkerPos){
+      applyOfflineMarkerTransform();
+    }
   }
 
   function setBug(h){
@@ -1498,7 +1501,7 @@
   // carte ne contient que les frontieres politiques : pas de rues, pas de
   // detail local, mais le point GPS y est positionne avec precision.
   let leafletMap = null, gpsMarker = null, currentZoomTier = null;
-  let offlineSvg = null, offlineMarker = null;
+  let offlineSvg = null, offlineMarker = null, offlineMarkerPos = null;
   let mapMode = null; // 'online' | 'offline'
 
   function speedTier(kmh){
@@ -1557,10 +1560,17 @@
     offlineMarker = marker;
   }
 
+  function applyOfflineMarkerTransform(){
+    if(!offlineMarker || !offlineMarkerPos) return;
+    offlineMarker.setAttribute('transform',
+      'translate('+offlineMarkerPos.x+','+offlineMarkerPos.y+') rotate('+currentHeadingMag+') scale(0.5)');
+  }
+
   function updateOfflineMap(lat, lon){
     ensureOfflineMap();
     const p = robinsonXY(lat, lon);
-    offlineMarker.setAttribute('transform', 'translate('+p.x+','+p.y+') rotate('+currentHeadingMag+')');
+    offlineMarkerPos = p;
+    applyOfflineMarkerTransform();
     const hw = OFFLINE_HALFWIDTH_UNITS;
     const hh = hw * (mapOfflineCanvas.clientHeight / Math.max(mapOfflineCanvas.clientWidth,1) || 0.43);
     offlineSvg.setAttribute('viewBox', (p.x-hw)+' '+(p.y-hh)+' '+(hw*2)+' '+(hh*2));
