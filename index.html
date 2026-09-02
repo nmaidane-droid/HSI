@@ -143,6 +143,7 @@
     user-select:none;
     transform-origin:50% 50%;
   }
+  .knob.left{ right:auto; left:14px; }
   .knob .hdg-label{
     font-size:9px;
     font-weight:700;
@@ -233,6 +234,9 @@
     </div>
     <div class="lubber-line"></div>
     <div class="center-hub"></div>
+    <div class="knob left" id="map-btn" style="cursor:pointer;">
+      <span class="hdg-label" style="color:#e8a33d;">MAP</span>
+    </div>
     <div class="knob right" id="hdg-knob">
       <span class="hdg-label">HDG<br>SET</span>
     </div>
@@ -249,14 +253,9 @@
     <div class="label">VITESSE SOL</div>
     <div class="value" id="speed-val">—</div>
   </div>
-  <div class="data-cell" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-    <div>
-      <div class="label">POSITION</div>
-      <div class="value small" id="pos-val" style="line-height:1.9;white-space:pre-line;">—</div>
-    </div>
-    <button id="map-btn" style="flex-shrink:0; padding:10px 16px; background:#e8a33d; border:1px solid #c8852a; border-radius:9px; color:#1a1a1a; font-size:12px; font-weight:700; letter-spacing:0.08em; font-family:'SF Mono','Roboto Mono',monospace;">
-      MAP
-    </button>
+  <div class="data-cell">
+    <div class="label">POSITION</div>
+    <div class="value small" id="pos-val" style="line-height:1.9;white-space:pre-line;">—</div>
   </div>
 </div>
 
