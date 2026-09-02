@@ -1,5 +1,5 @@
 // À incrémenter (hsi-v2, hsi-v3, ...) à chaque modification de index.html
-const VERSION = 'hsi-v3';
+const VERSION = 'hsi-v4';
 const CACHE_NAME = 'hsi-cache-' + VERSION;
 
 const ASSETS = [
