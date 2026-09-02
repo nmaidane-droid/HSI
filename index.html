@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>Boussole — HSI</title>
+<title>Boussole — HSI + Soleil/Lune</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0c0d0e">
 <link rel="icon" href="icon-192.png">
@@ -224,6 +224,8 @@
         <circle cx="150" cy="150" r="140" fill="none" stroke="#00000033" stroke-width="1"/>
         <g id="ticks"></g>
         <g id="bug"></g>
+        <g id="sun-marker"></g>
+        <g id="moon-marker"></g>
         <polygon points="150,150 138,168 150,162 162,168" fill="#f2f0e8" opacity="0.9"/>
         <polygon points="150,150 138,132 150,138 162,132" fill="#f2f0e8" opacity="0.9"/>
       </svg>
@@ -239,9 +241,12 @@
   </div>
 </div>
 
-<div class="readout">
-  <div class="deg"><span id="deg-val">000</span><span class="unit">°</span></div>
-  <div class="cardinal" id="cardinal-val">NORD</div>
+<div class="readout" style="flex-direction:row; align-items:center; justify-content:center; gap:22px;">
+  <div style="display:flex; flex-direction:column; align-items:center;">
+    <div class="deg"><span id="deg-val">000</span><span class="unit">°</span></div>
+    <div class="cardinal" id="cardinal-val">NORD</div>
+  </div>
+  <canvas id="moon-phase" width="88" height="88" style="width:44px;height:44px;"></canvas>
 </div>
 
 <div class="data-grid">
@@ -256,6 +261,133 @@
 </div>
 
 <script>
+// ===== Moteur astronomique (Soleil : Meeus ch.25 ; Lune : ELP abrege, Meeus ch.47) =====
+// Repris tel quel du moteur d'eclipse deja valide au chiffre pres sur les exemples
+// de reference de Meeus (longitude/latitude/distance lunaires exactes).
+(function(){
+  const RAD = Math.PI/180, DEG = 180/Math.PI;
+
+  function sunEcliptic(jdUT){
+    const T = (jdUT - 2451545)/36525;
+    const L0 = 280.46646 + 36000.76983*T + 0.0003032*T*T;
+    const M = 357.52911 + 35999.05029*T - 0.0001537*T*T;
+    const C = (1.914602 - 0.004817*T - 0.000014*T*T)*Math.sin(M*RAD)
+            + (0.019993 - 0.000101*T)*Math.sin(2*M*RAD)
+            + 0.000289*Math.sin(3*M*RAD);
+    const Om = 125.04 - 1934.136*T;
+    const lam = L0 + C - 0.00569 - 0.00478*Math.sin(Om*RAD);
+    const eps = 23 + 26/60 + 21.448/3600
+              - (46.8150*T + 0.00059*T*T - 0.001813*Math.pow(T,3))/3600
+              + 0.00256*Math.cos(Om*RAD);
+    return { lam: ((lam%360)+360)%360, eps };
+  }
+
+  const TA=[[0,0,1,0,6288774,-20905355],[2,0,-1,0,1274027,-3699111],[2,0,0,0,658314,-2955968],
+  [0,0,2,0,213618,-569925],[0,1,0,0,-185116,48888],[0,0,0,2,-114332,-3149],
+  [2,0,-2,0,58793,246158],[2,-1,-1,0,57066,-152138],[2,0,1,0,53322,-170733],
+  [2,-1,0,0,45758,-204586],[0,1,-1,0,-40923,-129620],[1,0,0,0,-34720,108743],
+  [0,1,1,0,-30383,104755],[2,0,0,-2,15327,10321],[0,0,1,2,-12528,0],
+  [0,0,1,-2,10980,79661],[4,0,-1,0,10675,-34782],[0,0,3,0,10034,-23210],
+  [4,0,-2,0,8548,-21636],[2,1,-1,0,-7888,24208],[2,1,0,0,-6766,30824],
+  [1,0,-1,0,-5163,-8379],[1,1,0,0,4987,-16675],[2,-1,1,0,4036,-12831],
+  [2,0,2,0,3994,-10445],[4,0,0,0,3861,-11650],[2,0,-3,0,3665,14403],
+  [0,1,-2,0,-2689,-7003],[2,0,-1,2,-2602,0],[2,-1,-2,0,2390,10056],
+  [1,0,1,0,-2348,6322],[2,-2,0,0,2236,-9884],[0,1,2,0,-2120,5751],
+  [0,2,0,0,-2069,0],[2,-2,-1,0,2048,-4950],[2,0,1,-2,-1773,4130],
+  [2,0,0,2,-1595,0],[4,-1,-1,0,1215,-3958],[0,0,2,2,-1110,0],
+  [3,0,-1,0,-892,3258],[2,1,1,0,-810,2616],[4,-1,-2,0,759,-1897],
+  [0,2,-1,0,-713,-2117],[2,2,-1,0,-700,2354],[2,1,-2,0,691,0],
+  [2,-1,0,-2,596,0],[4,0,1,0,549,-1423],[0,0,4,0,537,-1117],
+  [4,-1,0,0,520,-1571],[1,0,-2,0,-487,-1739],[2,1,0,-2,-399,0],
+  [0,0,2,-2,-381,-4421],[1,1,1,0,351,0],[3,0,-2,0,-340,0],
+  [4,0,-3,0,330,0],[2,-1,2,0,327,0],[0,2,1,0,-323,1165],
+  [1,1,-1,0,299,0],[2,0,3,0,294,0],[2,0,-1,-2,0,8752]];
+  const TB=[[0,0,0,1,5128122],[0,0,1,1,280602],[0,0,1,-1,277693],[2,0,0,-1,173237],
+  [2,0,-1,1,55413],[2,0,-1,-1,46271],[2,0,0,1,32573],[0,0,2,1,17198],
+  [2,0,1,-1,9266],[0,0,2,-1,8822],[2,-1,0,-1,8216],[2,0,-2,-1,4324],
+  [2,0,1,1,4200],[2,1,0,-1,-3359],[2,-1,-1,1,2463],[2,-1,0,1,2211],
+  [2,-1,-1,-1,2065],[0,1,-1,-1,-1870],[4,0,-1,-1,1828],[0,1,0,1,-1794],
+  [0,0,0,3,-1749],[0,1,-1,1,-1565],[1,0,0,1,-1491],[0,1,1,1,-1475],
+  [0,1,1,-1,-1410],[0,1,0,-1,-1344],[1,0,0,-1,-1335],[0,0,3,1,1107],
+  [4,0,0,-1,1021],[4,0,-1,1,833],[0,0,1,-3,777],[4,0,-2,1,671],
+  [2,0,0,-3,607],[2,0,2,-1,596],[2,-1,1,-1,491],[2,0,-2,1,-451],
+  [0,0,3,-1,439],[2,0,2,1,422],[2,0,-3,-1,421],[2,1,-1,1,-366],
+  [2,1,0,1,-351],[4,0,0,1,331],[2,-1,1,1,315],[2,-2,0,-1,302],
+  [0,0,1,3,-283],[2,1,1,-1,-229],[1,1,0,-1,223],[1,1,0,1,223],
+  [0,1,-2,-1,-220],[2,1,-1,-1,-220],[1,0,1,1,-185],[2,-1,-2,-1,181],
+  [0,1,2,1,-177],[4,0,-2,-1,176],[4,-1,-1,-1,166],[1,0,1,-1,-164],
+  [4,0,1,-1,132],[1,0,-1,-1,-119],[4,-1,0,-1,115],[2,-2,0,1,107]];
+
+  function moonEcliptic(jdUT){
+    const T = (jdUT - 2451545)/36525;
+    const Lp = 218.3164477 + 481267.88123421*T - 0.0015786*T*T + Math.pow(T,3)/538841 - Math.pow(T,4)/65194000;
+    const D  = 297.8501921 + 445267.1114034*T - 0.0018819*T*T + Math.pow(T,3)/545868 - Math.pow(T,4)/113065000;
+    const M  = 357.5291092 + 35999.0502909*T - 0.0001536*T*T + Math.pow(T,3)/24490000;
+    const Mp = 134.9633964 + 477198.8675055*T + 0.0087414*T*T + Math.pow(T,3)/69699 - Math.pow(T,4)/14712000;
+    const F  =  93.2720950 + 483202.0175233*T - 0.0036539*T*T - Math.pow(T,3)/3526000 + Math.pow(T,4)/863310000;
+    const A1 = 119.75 + 131.849*T;
+    const A2 =  53.09 + 479264.290*T;
+    const A3 = 313.45 + 481266.484*T;
+    const E  = 1 - 0.002516*T - 0.0000074*T*T;
+
+    let sl=0, sr=0, sb=0;
+    for(const t of TA){
+      const arg = (t[0]*D + t[1]*M + t[2]*Mp + t[3]*F)*RAD;
+      const e = Math.pow(E, Math.abs(t[1]));
+      sl += t[4]*e*Math.sin(arg);
+      sr += t[5]*e*Math.cos(arg);
+    }
+    for(const t of TB){
+      const arg = (t[0]*D + t[1]*M + t[2]*Mp + t[3]*F)*RAD;
+      sb += t[4]*Math.pow(E, Math.abs(t[1]))*Math.sin(arg);
+    }
+    sl += 3958*Math.sin(A1*RAD) + 1962*Math.sin((Lp-F)*RAD) + 318*Math.sin(A2*RAD);
+    sb += -2235*Math.sin(Lp*RAD) + 382*Math.sin(A3*RAD) + 175*Math.sin((A1-F)*RAD)
+        + 175*Math.sin((A1+F)*RAD) + 127*Math.sin((Lp-Mp)*RAD) - 115*Math.sin((Lp+Mp)*RAD);
+
+    return { lam: ((Lp + sl/1e6)%360+360)%360, bet: sb/1e6, dist: 385000.56 + sr/1000.0 };
+  }
+
+  function eclipticToEquatorial(lam, bet, eps){
+    const l=lam*RAD, b=bet*RAD, e=eps*RAD;
+    const ra = Math.atan2(Math.sin(l)*Math.cos(e) - Math.tan(b)*Math.sin(e), Math.cos(l));
+    const dec = Math.asin(Math.sin(b)*Math.cos(e) + Math.cos(b)*Math.sin(e)*Math.sin(l));
+    return { ra: ((ra*DEG)%360+360)%360, dec: dec*DEG };
+  }
+
+  function altAzFromRaDec(jdUT, lat, lon, raDeg, decDeg){
+    const Tu = (jdUT - 2451545)/36525;
+    const gmst = (280.46061837 + 360.98564736629*(jdUT-2451545) + 0.000387933*Tu*Tu) % 360;
+    const H = (((gmst + lon - raDeg)%360+360)%360)*RAD;
+    const latR = lat*RAD, dec = decDeg*RAD;
+    const alt = Math.asin(Math.sin(latR)*Math.sin(dec) + Math.cos(latR)*Math.cos(dec)*Math.cos(H));
+    const az = Math.atan2(Math.sin(H), Math.cos(H)*Math.sin(latR) - Math.tan(dec)*Math.cos(latR));
+    return { alt: alt*DEG, az: ((az*DEG + 180)%360+360)%360 };
+  }
+
+  function jdNow(){ return Date.now()/86400000 + 2440587.5; }
+
+  window.ASTRO = {
+    sunPosition: function(lat, lon){
+      const jdUT = jdNow();
+      const s = sunEcliptic(jdUT);
+      const eq = eclipticToEquatorial(s.lam, 0, s.eps);
+      const aa = altAzFromRaDec(jdUT, lat, lon, eq.ra, eq.dec);
+      return { alt: aa.alt, az: aa.az };
+    },
+    moonPosition: function(lat, lon){
+      const jdUT = jdNow();
+      const s = sunEcliptic(jdUT);
+      const m = moonEcliptic(jdUT);
+      const eq = eclipticToEquatorial(m.lam, m.bet, s.eps);
+      const aa = altAzFromRaDec(jdUT, lat, lon, eq.ra, eq.dec);
+      const elong = ((m.lam - s.lam)%360+360)%360;
+      const illum = (1 - Math.cos(elong*RAD))/2;
+      return { alt: aa.alt, az: aa.az, illum: illum, waxing: elong < 180 };
+    }
+  };
+})();
+
 (function(){
   const dial = document.getElementById('dial');
   const ticksG = document.getElementById('ticks');
@@ -344,6 +476,88 @@
     tri.setAttribute('stroke', '#0c0d0e');
     tri.setAttribute('stroke-width', '1');
     bugG.appendChild(tri);
+  }
+
+  // Repere Soleil/Lune sur le cadran : meme principe que le bug HDG (place a
+  // l'azimut reel, le groupe entier tourne avec le cadran via le CSS deja en
+  // place). Jaune si le Soleil est au-dessus de l'horizon, blanc pour la Lune,
+  // gris pour l'un ou l'autre sous l'horizon.
+  const sunMarkerG = document.getElementById('sun-marker');
+  const moonMarkerG = document.getElementById('moon-marker');
+  const GREY_BELOW_HORIZON = '#6b6f72';
+
+  function renderCelestialMarker(group, az, alt, colorAbove, radius){
+    group.innerHTML = '';
+    const rad = (az-90) * Math.PI/180;
+    const r = 124;
+    const x = cx + r*Math.cos(rad), y = cy + r*Math.sin(rad);
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx', x); circle.setAttribute('cy', y);
+    circle.setAttribute('r', radius);
+    circle.setAttribute('fill', alt > 0 ? colorAbove : GREY_BELOW_HORIZON);
+    circle.setAttribute('stroke', '#0c0d0e');
+    circle.setAttribute('stroke-width', '1');
+    group.appendChild(circle);
+  }
+
+  function renderSunMarker(az, alt){ renderCelestialMarker(sunMarkerG, az, alt, '#e8a33d', 7); }
+  function renderMoonMarker(az, alt){ renderCelestialMarker(moonMarkerG, az, alt, '#f2f0e8', 6); }
+
+  // Icone de phase lunaire : ombrage reel par canvas (terminateur elliptique),
+  // pas une forme SVG plate. illum = fraction eclairee (0=nouvelle, 1=pleine).
+  const moonCanvas = document.getElementById('moon-phase');
+  const moonCtx = moonCanvas.getContext('2d');
+
+  function drawMoonPhase(illum, waxing, visible){
+    const W = moonCanvas.width, H = moonCanvas.height;
+    const mcx = W/2, mcy = H/2, R = W/2 - 3;
+    const litColor = visible ? '#f2f0e8' : GREY_BELOW_HORIZON;
+    const darkColor = '#17181a';
+
+    moonCtx.clearRect(0,0,W,H);
+    moonCtx.save();
+    moonCtx.beginPath(); moonCtx.arc(mcx,mcy,R,0,2*Math.PI); moonCtx.clip();
+
+    // legere ombre spherique meme sur la face sombre, pour un rendu moins plat
+    const grad = moonCtx.createRadialGradient(mcx-R*0.3,mcy-R*0.3,R*0.1,mcx,mcy,R*1.1);
+    grad.addColorStop(0, darkColor);
+    grad.addColorStop(1, '#000000');
+    moonCtx.fillStyle = grad;
+    moonCtx.fillRect(0,0,W,H);
+
+    moonCtx.fillStyle = litColor;
+    moonCtx.beginPath();
+    if(waxing){ moonCtx.arc(mcx,mcy,R,-Math.PI/2,Math.PI/2); }
+    else { moonCtx.arc(mcx,mcy,R,Math.PI/2,3*Math.PI/2); }
+    moonCtx.closePath();
+    moonCtx.fill();
+
+    const ew = R*Math.abs(1-2*illum);
+    moonCtx.beginPath();
+    moonCtx.ellipse(mcx,mcy,ew,R,0,0,2*Math.PI);
+    moonCtx.fillStyle = illum < 0.5 ? darkColor : litColor;
+    moonCtx.fill();
+
+    moonCtx.restore();
+    moonCtx.beginPath();
+    moonCtx.arc(mcx,mcy,R,0,2*Math.PI);
+    moonCtx.strokeStyle = 'rgba(242,240,232,0.15)';
+    moonCtx.lineWidth = 1;
+    moonCtx.stroke();
+  }
+
+  let lastKnownLat = null, lastKnownLon = null;
+  setInterval(function(){
+    if(lastKnownLat !== null) updateCelestialBodies(lastKnownLat, lastKnownLon);
+  }, 60000);
+
+  function updateCelestialBodies(lat, lon){
+    if(!window.ASTRO) return;
+    const sun = ASTRO.sunPosition(lat, lon);
+    const moon = ASTRO.moonPosition(lat, lon);
+    renderSunMarker(sun.az, sun.alt);
+    renderMoonMarker(moon.az, moon.alt);
+    drawMoonPhase(moon.illum, moon.waxing, moon.alt > 0);
   }
 
   function render(){
@@ -519,6 +733,8 @@
     navigator.geolocation.watchPosition(function(pos){
       const lat = pos.coords.latitude, lon = pos.coords.longitude;
       posVal.textContent = formatLatLon(lat, lon);
+      lastKnownLat = lat; lastKnownLon = lon;
+      updateCelestialBodies(lat, lon);
 
       // Position peu precise (mauvais signal) : on ignore cette lecture pour la
       // vitesse plutot que d'afficher un pic errone, mais on garde la derniere
