@@ -249,11 +249,27 @@
     <div class="label">VITESSE SOL</div>
     <div class="value" id="speed-val">—</div>
   </div>
-  <div class="data-cell">
-    <div class="label">POSITION</div>
-    <div class="value small" id="pos-val" style="line-height:1.9;white-space:pre-line;">—</div>
+  <div class="data-cell" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+    <div>
+      <div class="label">POSITION</div>
+      <div class="value small" id="pos-val" style="line-height:1.9;white-space:pre-line;">—</div>
+    </div>
+    <button id="map-btn" style="flex-shrink:0; padding:10px 16px; background:linear-gradient(180deg, #2a2d2e 0%, #1c1e1f 100%); border:1px solid #34373a; border-radius:9px; color:#f2f0e8; font-size:12px; font-weight:700; letter-spacing:0.08em; font-family:'SF Mono','Roboto Mono',monospace;">
+      MAP
+    </button>
   </div>
 </div>
+
+<div id="map-overlay" style="display:none; position:fixed; inset:0; background:#0c0d0e; z-index:1000; flex-direction:column;">
+  <div style="display:flex; align-items:center; justify-content:space-between; padding:16px; border-bottom:1px solid #2a2c2d;">
+    <span style="font-size:13px; letter-spacing:0.1em; color:#8a8f92; font-weight:700;">POSITION GPS</span>
+    <button id="map-close-btn" style="width:34px; height:34px; border-radius:8px; background:#232526; border:1px solid #34373a; color:#f2f0e8; font-size:18px; line-height:1;">✕</button>
+  </div>
+  <div id="map-canvas" style="flex:1;"></div>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 (function(){
@@ -265,6 +281,9 @@
   const cardinalVal = document.getElementById('cardinal-val');
   const posVal = document.getElementById('pos-val');
   const speedVal = document.getElementById('speed-val');
+  const mapBtn = document.getElementById('map-btn');
+  const mapOverlay = document.getElementById('map-overlay');
+  const mapCloseBtn = document.getElementById('map-close-btn');
   const sensorTag = document.getElementById('sensor-tag');
   const hdgKnob = document.getElementById('hdg-knob');
 
@@ -510,6 +529,46 @@
     return 'Latitude : ' + toDMS(lat, 'N', 'S') + '\nLongitude : ' + toDMS(lon, 'E', 'W');
   }
 
+  // Carte plein ecran (Leaflet + fond CARTO sombre, meme style que Station ISS).
+  // Auto-centree et auto-zoomee sur la position GPS a l'ouverture ; le marqueur
+  // suit ensuite les mises a jour de position sans re-zoomer.
+  let leafletMap = null, gpsMarker = null;
+
+  function ensureMap(lat, lon){
+    if(leafletMap) return;
+    leafletMap = L.map('map-canvas', { zoomControl:true, attributionControl:true }).setView([lat,lon], 16);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap, © CARTO',
+      maxZoom: 19
+    }).addTo(leafletMap);
+    const icon = L.divIcon({
+      className: '',
+      html: '<div style="width:16px;height:16px;border-radius:50%;background:#e8a33d;border:2px solid #0c0d0e;box-shadow:0 0 6px rgba(232,163,61,0.8);"></div>',
+      iconSize: [16,16], iconAnchor: [8,8]
+    });
+    gpsMarker = L.marker([lat,lon], { icon: icon }).addTo(leafletMap);
+  }
+
+  function updateMapPosition(lat, lon){
+    if(!leafletMap || !gpsMarker) return;
+    gpsMarker.setLatLng([lat,lon]);
+  }
+
+  mapBtn.addEventListener('click', function(){
+    mapOverlay.style.display = 'flex';
+    if(lastKnownLat !== null){
+      ensureMap(lastKnownLat, lastKnownLon);
+    }
+    // Leaflet a besoin d'un recalcul de taille une fois le conteneur visible
+    setTimeout(function(){ if(leafletMap) leafletMap.invalidateSize(); }, 50);
+  });
+
+  mapCloseBtn.addEventListener('click', function(){
+    mapOverlay.style.display = 'none';
+  });
+
+  let lastKnownLat = null, lastKnownLon = null;
+
   function requestLocation(){
     if(!('geolocation' in navigator)){
       posVal.textContent = 'indisponible';
@@ -519,6 +578,8 @@
     navigator.geolocation.watchPosition(function(pos){
       const lat = pos.coords.latitude, lon = pos.coords.longitude;
       posVal.textContent = formatLatLon(lat, lon);
+      lastKnownLat = lat; lastKnownLon = lon;
+      updateMapPosition(lat, lon);
 
       // Position peu precise (mauvais signal) : on ignore cette lecture pour la
       // vitesse plutot que d'afficher un pic errone, mais on garde la derniere
