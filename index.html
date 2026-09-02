@@ -537,7 +537,7 @@
   function ensureMap(lat, lon){
     if(leafletMap) return;
     leafletMap = L.map('map-canvas', { zoomControl:true, attributionControl:true }).setView([lat,lon], 16);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_269n_1_75a47770d40169727a932058', {
       attribution: '© OpenStreetMap, © CARTO',
       maxZoom: 19
     }).addTo(leafletMap);
