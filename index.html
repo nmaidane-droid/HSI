@@ -254,7 +254,7 @@
       <div class="label">POSITION</div>
       <div class="value small" id="pos-val" style="line-height:1.9;white-space:pre-line;">—</div>
     </div>
-    <button id="map-btn" style="flex-shrink:0; padding:10px 16px; background:linear-gradient(180deg, #2a2d2e 0%, #1c1e1f 100%); border:1px solid #34373a; border-radius:9px; color:#f2f0e8; font-size:12px; font-weight:700; letter-spacing:0.08em; font-family:'SF Mono','Roboto Mono',monospace;">
+    <button id="map-btn" style="flex-shrink:0; padding:10px 16px; background:#e8a33d; border:1px solid #c8852a; border-radius:9px; color:#1a1a1a; font-size:12px; font-weight:700; letter-spacing:0.08em; font-family:'SF Mono','Roboto Mono',monospace;">
       MAP
     </button>
   </div>
@@ -529,15 +529,24 @@
     return 'Latitude : ' + toDMS(lat, 'N', 'S') + '\nLongitude : ' + toDMS(lon, 'E', 'W');
   }
 
-  // Carte plein ecran (Leaflet + fond CARTO sombre, meme style que Station ISS).
-  // Auto-centree et auto-zoomee sur la position GPS a l'ouverture ; le marqueur
-  // suit ensuite les mises a jour de position sans re-zoomer.
-  let leafletMap = null, gpsMarker = null;
+  // Carte plein ecran (Leaflet + fond CARTO clair). Le zoom s'adapte a la
+  // vitesse de deplacement : marche -> niveau rue, voiture -> vue ~50km,
+  // avion -> vue ~500km. On ne re-zoome que si le "palier" de vitesse change,
+  // pour ne pas annuler un zoom manuel de l'utilisateur a chaque position.
+  let leafletMap = null, gpsMarker = null, currentZoomTier = null;
+
+  function speedTier(kmh){
+    if(kmh === null || kmh < 8) return { name:'marche', zoom:17 };
+    if(kmh < 250) return { name:'route', zoom:11 };
+    return { name:'avion', zoom:7 };
+  }
 
   function ensureMap(lat, lon){
     if(leafletMap) return;
-    leafletMap = L.map('map-canvas', { zoomControl:true, attributionControl:true }).setView([lat,lon], 16);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_269n_1_75a47770d40169727a932058', {
+    const tier = speedTier(smoothedSpeedKmh);
+    currentZoomTier = tier.name;
+    leafletMap = L.map('map-canvas', { zoomControl:true, attributionControl:true }).setView([lat,lon], tier.zoom);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_269n_1_75a47770d40169727a932058', {
       attribution: '© OpenStreetMap, © CARTO',
       maxZoom: 19
     }).addTo(leafletMap);
@@ -552,6 +561,13 @@
   function updateMapPosition(lat, lon){
     if(!leafletMap || !gpsMarker) return;
     gpsMarker.setLatLng([lat,lon]);
+    const tier = speedTier(smoothedSpeedKmh);
+    if(tier.name !== currentZoomTier){
+      currentZoomTier = tier.name;
+      leafletMap.setView([lat,lon], tier.zoom);
+    } else {
+      leafletMap.panTo([lat,lon], { animate:true });
+    }
   }
 
   mapBtn.addEventListener('click', function(){
