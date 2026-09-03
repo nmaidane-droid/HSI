@@ -1468,7 +1468,8 @@
     } else {
       smoothedSpeedKmh = smoothedSpeedKmh + (clamped - smoothedSpeedKmh) * SPEED_SMOOTHING;
     }
-    speedVal.textContent = Math.round(smoothedSpeedKmh) + ' km/h';
+    const kt = smoothedSpeedKmh / 1.852;
+    speedVal.textContent = Math.round(smoothedSpeedKmh) + ' km/h  •  ' + Math.round(kt) + ' kt';
   }
 
   // Format degres/minutes/secondes, ex: 33° 35' 24" N
