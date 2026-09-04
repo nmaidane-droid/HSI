@@ -1473,6 +1473,41 @@
     speedVal.textContent = Math.round(smoothedSpeedKmh) + ' km/h  •  ' + Math.round(kt) + ' kt';
   }
 
+  // Secours quand Android ne fournit pas coords.speed (frequent a l'arret ou
+  // en mouvement lent) : on calcule la vitesse depuis la distance parcourue
+  // entre deux positions successives (haversine) et le temps ecoule.
+  let lastFixLat = null, lastFixLon = null, lastFixTime = null;
+  const R_TERRE_KM = 6371;
+
+  function haversineKm(lat1, lon1, lat2, lon2){
+    const toRad = Math.PI/180;
+    const dLat = (lat2-lat1)*toRad, dLon = (lon2-lon1)*toRad;
+    const a = Math.sin(dLat/2)*Math.sin(dLat/2)
+            + Math.cos(lat1*toRad)*Math.cos(lat2*toRad)*Math.sin(dLon/2)*Math.sin(dLon/2);
+    return 2*R_TERRE_KM*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  function speedFromPositions(lat, lon, accuracyM){
+    const now = Date.now();
+    let derived = null;
+    if(lastFixLat !== null){
+      const dtH = (now - lastFixTime)/3600000;
+      // En dessous d'une seconde, le bruit GPS domine et donnerait une vitesse
+      // fantaisiste ; au dela de 30 s, l'echantillon est trop vieux pour etre
+      // representatif de la vitesse instantanee.
+      if(dtH > 0.00027 && dtH < 0.0084){
+        const distKm = haversineKm(lastFixLat, lastFixLon, lat, lon);
+        // Un deplacement plus petit que la marge d'erreur du GPS n'est pas un
+        // vrai deplacement : c'est du bruit. A l'arret, ce bruit produirait
+        // sinon une vitesse fantome de plusieurs km/h.
+        const noiseKm = (2 * (accuracyM || 10)) / 1000;
+        derived = distKm > noiseKm ? distKm / dtH : 0;
+      }
+    }
+    lastFixLat = lat; lastFixLon = lon; lastFixTime = now;
+    return derived;
+  }
+
   // Format degres/minutes/secondes, ex: 33° 35' 24" N
   function toDMS(value, posLetter, negLetter){
     const dir = value >= 0 ? posLetter : negLetter;
@@ -1799,13 +1834,20 @@
         return;
       }
 
+      // Vitesse calculee depuis le deplacement, comme repli si Android ne
+      // fournit rien. On l'alimente a chaque position valide pour qu'elle
+      // reste prete meme quand coords.speed fonctionne.
+      const derivedKmh = speedFromPositions(lat, lon, pos.coords.accuracy);
+
       if(rawKmh !== null){
         pushSpeed(rawKmh);
+      } else if(derivedKmh !== null){
+        pushSpeed(derivedKmh);
       } else if(smoothedSpeedKmh === null){
-        // Le GPS ne fournit pas encore de vitesse. On n'ecrase pas une valeur
-        // deja lissee : Android renvoie souvent null par intermittence a
-        // l'arret, ce qui ferait clignoter l'affichage.
-        speedVal.textContent = 'indisponible';
+        // Ni vitesse GPS ni deuxieme position encore disponible : on attend.
+        // "En attente" plutot qu'"indisponible", qui laissait croire a une panne
+        // alors que le GPS attend simplement un deplacement.
+        speedVal.textContent = 'en attente…';
       }
     }, function(err){
       // Seul le refus de permission est un arret definitif.
