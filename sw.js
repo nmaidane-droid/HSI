@@ -1,6 +1,14 @@
 // À incrémenter (hsi-v2, hsi-v3, ...) à chaque modification de index.html
-const VERSION = 'hsi-v5';
+const VERSION = 'hsi-v6';
 const CACHE_NAME = 'hsi-cache-' + VERSION;
+
+// Leaflet vient d'un CDN externe : on le met en cache lors de la premiere
+// visite en ligne, sinon il serait injoignable en mode avion et la carte
+// basculerait inutilement en mode hors-ligne meme apres un simple rechargement.
+const LEAFLET = [
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+];
 
 const ASSETS = [
   './',
@@ -15,7 +23,14 @@ self.addEventListener('install', function(event){
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache){
-      return cache.addAll(ASSETS);
+      // Les fichiers locaux sont indispensables : un echec doit faire echouer
+      // l'installation. Leaflet est optionnel (l'app bascule sur la carte
+      // embarquee sans lui), donc son echec ne doit pas bloquer le reste.
+      return cache.addAll(ASSETS).then(function(){
+        return Promise.all(LEAFLET.map(function(url){
+          return cache.add(url).catch(function(){});
+        }));
+      });
     })
   );
 });

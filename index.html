@@ -1326,7 +1326,7 @@
     const display = currentHeadingMag;
     dial.style.transform = 'rotate(' + (-display) + 'deg)';
     positionLabels(display);
-    degVal.textContent = String(Math.round(display)).padStart(3,'0');
+    degVal.textContent = String(Math.round(display) % 360).padStart(3,'0');
     cardinalVal.textContent = dirFor(display);
     if(mapMode === 'offline' && offlineMarker && offlineMarkerPos){
       applyOfflineMarkerTransform();
@@ -1676,6 +1676,13 @@
   }
 
   function switchToOnlineMap(lat, lon){
+    // Si la bibliotheque de carte n'a pas pu etre chargee (CDN injoignable,
+    // reseau trop lent au demarrage), on bascule sur la carte embarquee
+    // plutot que de planter sur un L indefini.
+    if(typeof L === 'undefined'){
+      switchToOfflineMap(lat, lon);
+      return;
+    }
     mapMode = 'online';
     mapWaiting.style.display = 'none';
     mapOfflineCanvas.style.display = 'none';
@@ -1784,13 +1791,30 @@
 
       if(typeof pos.coords.speed === 'number' && pos.coords.speed !== null){
         pushSpeed(pos.coords.speed * 3.6);
-      } else {
+      } else if(smoothedSpeedKmh === null){
+        // Le GPS ne fournit pas encore de vitesse. On n'ecrase pas une valeur
+        // deja lissee : Android renvoie souvent null par intermittence a
+        // l'arret, ce qui ferait clignoter l'affichage.
         speedVal.textContent = 'indisponible';
       }
-    }, function(){
-      posVal.textContent = 'refusé';
-      speedVal.textContent = 'refusé';
-    }, { enableHighAccuracy:true, maximumAge:2000, timeout:8000 });
+    }, function(err){
+      // Seul le refus de permission est un arret definitif.
+      // POSITION_UNAVAILABLE et TIMEOUT sont tous deux transitoires pendant
+      // l'acquisition du GPS (frequent en mode avion, sans assistance A-GPS) :
+      // watchPosition continue de chercher tout seul, on affiche donc l'etat
+      // de recherche plutot qu'une erreur qui laisserait croire a un blocage.
+      if(err.code === err.PERMISSION_DENIED){
+        posVal.textContent = 'refusé';
+        speedVal.textContent = 'refusé';
+        return;
+      }
+      // Si une position a deja ete obtenue, on la laisse affichee telle quelle
+      // plutot que de la remplacer par un message transitoire.
+      if(lastKnownLat === null){
+        posVal.textContent = 'recherche du signal GPS…';
+        speedVal.textContent = '—';
+      }
+    }, { enableHighAccuracy:true, maximumAge:2000, timeout:60000 });
   }
 
   function goLive(){
