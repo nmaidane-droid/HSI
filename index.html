@@ -1460,6 +1460,7 @@
   const SPEED_SMOOTHING = 0.3;
   const SPEED_NOISE_FLOOR_KMH = 3;
   const GPS_ACCURACY_MAX_M = 25;
+  const GPS_ACCURACY_MAX_MOVING_M = 200;
 
   function pushSpeed(rawKmh){
     const clamped = rawKmh < SPEED_NOISE_FLOOR_KMH ? 0 : rawKmh;
@@ -1782,15 +1783,24 @@
       }
       updateMapPosition(lat, lon);
 
-      // Position peu precise (mauvais signal) : on ignore cette lecture pour la
-      // vitesse plutot que d'afficher un pic errone, mais on garde la derniere
-      // valeur fiable affichee.
-      if(typeof pos.coords.accuracy === 'number' && pos.coords.accuracy > GPS_ACCURACY_MAX_M){
+      // Seuil de precision adaptatif. Le filtre strict sert a ecarter les
+      // fausses vitesses dues au bruit GPS quand on est immobile. En
+      // mouvement, la precision se degrade naturellement (l'appareil bouge
+      // pendant le calcul du point) : garder 25 m bloquerait la mise a jour
+      // en vol. On relache donc le seuil des qu'une vitesse reelle est etablie.
+      const rawKmh = (typeof pos.coords.speed === 'number' && pos.coords.speed !== null)
+        ? pos.coords.speed * 3.6 : null;
+      // On ne se fie qu'a la vitesse DEJA etablie pour decider si on bouge :
+      // utiliser la lecture brute en cours reviendrait a la valider par
+      // elle-meme, et laisserait passer les faux pics a l'arret.
+      const moving = smoothedSpeedKmh !== null && smoothedSpeedKmh >= SPEED_NOISE_FLOOR_KMH;
+      const accuracyLimit = moving ? GPS_ACCURACY_MAX_MOVING_M : GPS_ACCURACY_MAX_M;
+      if(typeof pos.coords.accuracy === 'number' && pos.coords.accuracy > accuracyLimit){
         return;
       }
 
-      if(typeof pos.coords.speed === 'number' && pos.coords.speed !== null){
-        pushSpeed(pos.coords.speed * 3.6);
+      if(rawKmh !== null){
+        pushSpeed(rawKmh);
       } else if(smoothedSpeedKmh === null){
         // Le GPS ne fournit pas encore de vitesse. On n'ecrase pas une valeur
         // deja lissee : Android renvoie souvent null par intermittence a
