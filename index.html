@@ -1538,8 +1538,15 @@
   // carte ne contient que les frontieres politiques : pas de rues, pas de
   // detail local, mais le point GPS y est positionne avec precision.
   let leafletMap = null, gpsMarker = null, currentZoomTier = null;
+  let onlineTrail = null, onlineStart = null;
   let offlineSvg = null, offlineMarker = null, offlineMarkerPos = null;
+  let offlineTrail = null, offlineStart = null, offlineViewBox = null;
   let mapMode = null; // 'online' | 'offline'
+
+  // Historique complet des positions depuis la premiere acquisition.
+  // Conserve en lat/lon pour pouvoir le retracer dans les deux modes de carte.
+  const trackHistory = [];
+  const TRACK_MIN_MOVE_KM = 0.15; // en dessous, c'est du bruit GPS : on n'ajoute pas de point
 
   function speedTier(kmh){
     if(kmh === null || kmh < 8) return { name:'marche', zoom:17 };
@@ -1670,6 +1677,29 @@
     renderOfflineCities();
     svgEl.addEventListener('click', hideCityPopup);
 
+    // Trajectoire : trait plein rouge depuis la premiere position acquise.
+    // Cree avant l'avion pour rester dessous dans l'ordre d'empilement SVG.
+    const trail = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+    trail.setAttribute('id','offline-trail');
+    trail.setAttribute('fill','none');
+    trail.setAttribute('stroke','#c0392b');
+    trail.setAttribute('stroke-width','1.2');
+    trail.setAttribute('stroke-linecap','round');
+    trail.setAttribute('stroke-linejoin','round');
+    svgEl.appendChild(trail);
+    offlineTrail = trail;
+
+    // Cercle creux marquant le point de depart
+    const start = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    start.setAttribute('id','offline-start');
+    start.setAttribute('r','2.6');
+    start.setAttribute('fill','none');
+    start.setAttribute('stroke','#c0392b');
+    start.setAttribute('stroke-width','1.2');
+    start.style.display = 'none';
+    svgEl.appendChild(start);
+    offlineStart = start;
+
     // Icone avion (silhouette simple, pointe vers le haut = cap 0), orientee
     // en continu selon le cap magnetique courant.
     const marker = document.createElementNS('http://www.w3.org/2000/svg','g');
@@ -1691,18 +1721,59 @@
       'translate('+offlineMarkerPos.x+','+offlineMarkerPos.y+') rotate('+currentHeadingMag+') scale(0.5)');
   }
 
+  function renderOfflineTrail(){
+    if(!offlineTrail || trackHistory.length === 0) return;
+    const pts = trackHistory.map(function(t){
+      const q = robinsonXY(t.lat, t.lon);
+      return q.x.toFixed(2) + ',' + q.y.toFixed(2);
+    }).join(' ');
+    offlineTrail.setAttribute('points', pts);
+    const first = robinsonXY(trackHistory[0].lat, trackHistory[0].lon);
+    offlineStart.setAttribute('cx', first.x);
+    offlineStart.setAttribute('cy', first.y);
+    offlineStart.style.display = 'block';
+  }
+
   function updateOfflineMap(lat, lon){
     ensureOfflineMap();
     const p = robinsonXY(lat, lon);
     offlineMarkerPos = p;
     applyOfflineMarkerTransform();
+    renderOfflineTrail();
+
     const hw = OFFLINE_HALFWIDTH_UNITS;
     const hh = hw * (mapOfflineCanvas.clientHeight / Math.max(mapOfflineCanvas.clientWidth,1) || 0.43);
-    offlineSvg.setAttribute('viewBox', (p.x-hw)+' '+(p.y-hh)+' '+(hw*2)+' '+(hh*2));
+
+    // On ne recentre PAS a chaque position : sinon l'avion reste colle au
+    // centre de l'ecran et parait immobile, puisque c'est le decor qui glisse
+    // sous lui. On ne recadre que lorsqu'il approche du bord, ce qui rend son
+    // deplacement et sa trajectoire reellement visibles entre deux recadrages.
+    if(offlineViewBox === null){
+      offlineViewBox = { x: p.x-hw, y: p.y-hh, w: hw*2, h: hh*2 };
+    } else {
+      // Redimensionner si l'ecran a change (rotation), en gardant le centre
+      if(Math.abs(offlineViewBox.w - hw*2) > 0.5 || Math.abs(offlineViewBox.h - hh*2) > 0.5){
+        const cxv = offlineViewBox.x + offlineViewBox.w/2;
+        const cyv = offlineViewBox.y + offlineViewBox.h/2;
+        offlineViewBox = { x: cxv-hw, y: cyv-hh, w: hw*2, h: hh*2 };
+      }
+      const marginX = offlineViewBox.w * 0.25;
+      const marginY = offlineViewBox.h * 0.25;
+      const outside = p.x < offlineViewBox.x + marginX || p.x > offlineViewBox.x + offlineViewBox.w - marginX
+                   || p.y < offlineViewBox.y + marginY || p.y > offlineViewBox.y + offlineViewBox.h - marginY;
+      if(outside){
+        offlineViewBox = { x: p.x-hw, y: p.y-hh, w: hw*2, h: hh*2 };
+      }
+    }
+    offlineSvg.setAttribute('viewBox',
+      offlineViewBox.x+' '+offlineViewBox.y+' '+offlineViewBox.w+' '+offlineViewBox.h);
   }
 
   function switchToOfflineMap(lat, lon){
-    if(leafletMap){ mapCanvas.innerHTML=''; leafletMap.remove(); leafletMap = null; }
+    if(leafletMap){
+      mapCanvas.innerHTML=''; leafletMap.remove(); leafletMap = null;
+      onlineTrail = null; onlineStart = null;
+    }
     mapMode = 'offline';
     mapWaiting.style.display = 'none';
     mapCanvas.style.display = 'none';
@@ -1753,6 +1824,33 @@
     gpsMarker = L.marker([lat,lon], { icon: icon }).addTo(leafletMap);
   }
 
+  // Ajoute la position a l'historique si elle marque un deplacement reel.
+  function recordTrack(lat, lon){
+    if(trackHistory.length === 0){
+      trackHistory.push({ lat: lat, lon: lon });
+      return true;
+    }
+    const last = trackHistory[trackHistory.length-1];
+    if(haversineKm(last.lat, last.lon, lat, lon) >= TRACK_MIN_MOVE_KM){
+      trackHistory.push({ lat: lat, lon: lon });
+      return true;
+    }
+    return false;
+  }
+
+  function renderOnlineTrail(){
+    if(!leafletMap || trackHistory.length < 2) return;
+    const latlngs = trackHistory.map(function(t){ return [t.lat, t.lon]; });
+    if(!onlineTrail){
+      onlineTrail = L.polyline(latlngs, { color:'#c0392b', weight:3, opacity:0.9 }).addTo(leafletMap);
+      onlineStart = L.circleMarker(latlngs[0], {
+        radius:5, color:'#c0392b', weight:2, fill:false
+      }).addTo(leafletMap);
+    } else {
+      onlineTrail.setLatLngs(latlngs);
+    }
+  }
+
   function updateMapPosition(lat, lon){
     if(mapMode === 'offline'){
       updateOfflineMap(lat, lon);
@@ -1760,6 +1858,7 @@
     }
     if(!leafletMap || !gpsMarker) return;
     gpsMarker.setLatLng([lat,lon]);
+    renderOnlineTrail();
     const tier = speedTier(smoothedSpeedKmh);
     if(tier.name !== currentZoomTier){
       currentZoomTier = tier.name;
@@ -1816,6 +1915,7 @@
         if(isOnline()){ switchToOnlineMap(lat, lon); } else { switchToOfflineMap(lat, lon); }
         setTimeout(function(){ if(leafletMap) leafletMap.invalidateSize(); }, 50);
       }
+      recordTrack(lat, lon);
       updateMapPosition(lat, lon);
 
       // Seuil de precision adaptatif. Le filtre strict sert a ecarter les
@@ -1869,10 +1969,35 @@
     }, { enableHighAccuracy:true, maximumAge:2000, timeout:60000 });
   }
 
+  // Verrou d'ecran. Quand l'ecran s'eteint, Chrome Android suspend la page et
+  // coupe watchPosition : position et vitesse se figent (typiquement apres le
+  // delai de veille de l'appareil). Ce verrou maintient l'ecran allume tant
+  // que l'app est au premier plan, et se reprend automatiquement au retour.
+  let wakeLock = null;
+
+  async function requestWakeLock(){
+    if(!('wakeLock' in navigator)) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', function(){ wakeLock = null; });
+    } catch(e){
+      // Refus du navigateur (batterie faible, onglet en arriere-plan) :
+      // l'app continue de fonctionner, simplement sans garantie de veille.
+      wakeLock = null;
+    }
+  }
+
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible' && wakeLock === null){
+      requestWakeLock();
+    }
+  });
+
   function goLive(){
     sensorActive = true;
     sensorTag.textContent = 'CAPTEUR ACTIF';
     sensorTag.classList.add('ok');
+    requestWakeLock();
     requestLocation();
   }
 
