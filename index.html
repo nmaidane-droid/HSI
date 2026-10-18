@@ -257,10 +257,25 @@
     <div class="label">POSITION</div>
     <div class="value small" id="pos-val" style="line-height:1.9;white-space:pre-line;">—</div>
   </div>
-  <div class="data-cell">
-    <div class="label">SIGNAL</div>
-    <div class="value small" id="signal-val">—</div>
+  <div class="data-cell" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+    <div style="min-width:0;">
+      <div class="label">SIGNAL</div>
+      <div class="value small" id="signal-val">—</div>
+    </div>
+    <button id="log-btn" style="flex-shrink:0; padding:9px 14px; background:#232526; border:1px solid #34373a; border-radius:9px; color:#f2f0e8; font-size:11px; font-weight:700; letter-spacing:0.08em; font-family:'SF Mono','Roboto Mono',monospace;">LOG</button>
   </div>
+</div>
+
+<div id="log-overlay" style="display:none; position:fixed; inset:0; background:#0c0d0e; z-index:1100; flex-direction:column;">
+  <div style="display:flex; align-items:center; justify-content:space-between; padding:16px; border-bottom:1px solid #2a2c2d; gap:10px;">
+    <span style="font-size:13px; letter-spacing:0.1em; color:#8a8f92; font-weight:700;">JOURNAL</span>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <button id="log-copy-btn" style="padding:8px 12px; background:#e8a33d; border:1px solid #c8852a; border-radius:8px; color:#1a1a1a; font-size:11px; font-weight:700; letter-spacing:0.06em; font-family:'SF Mono','Roboto Mono',monospace;">COPIER</button>
+      <button id="log-clear-btn" style="padding:8px 12px; background:#232526; border:1px solid #34373a; border-radius:8px; color:#f2f0e8; font-size:11px; font-weight:700; letter-spacing:0.06em; font-family:'SF Mono','Roboto Mono',monospace;">VIDER</button>
+      <button id="log-close-btn" style="width:34px; height:34px; border-radius:8px; background:#232526; border:1px solid #34373a; color:#f2f0e8; font-size:18px; line-height:1;">✕</button>
+    </div>
+  </div>
+  <div id="log-body" style="flex:1; overflow-y:auto; padding:12px 14px; font-family:'SF Mono','Roboto Mono',monospace; font-size:11px; line-height:1.7; color:#c9c7c0; white-space:pre-wrap; word-break:break-word;"></div>
 </div>
 
 <div id="map-overlay" style="display:none; position:fixed; inset:0; background:#0c0d0e; z-index:1000; flex-direction:column;">
@@ -1239,6 +1254,81 @@
   const posVal = document.getElementById('pos-val');
   const speedVal = document.getElementById('speed-val');
   const signalVal = document.getElementById('signal-val');
+  const logBtn = document.getElementById('log-btn');
+  const logOverlay = document.getElementById('log-overlay');
+  const logBody = document.getElementById('log-body');
+  const logCloseBtn = document.getElementById('log-close-btn');
+  const logCopyBtn = document.getElementById('log-copy-btn');
+  const logClearBtn = document.getElementById('log-clear-btn');
+
+  // Journal d'evenements : sert a diagnostiquer apres coup un gel qu'on ne
+  // peut pas observer en direct. Conserve dans localStorage pour survivre a
+  // un rechargement ou a une suspension de la page par le systeme.
+  const LOG_KEY = 'hsi-log-v1';
+  const LOG_MAX = 600;
+  let logEntries = [];
+  try {
+    const saved = localStorage.getItem(LOG_KEY);
+    if(saved) logEntries = JSON.parse(saved) || [];
+  } catch(e){ logEntries = []; }
+
+  function logSave(){
+    try { localStorage.setItem(LOG_KEY, JSON.stringify(logEntries)); } catch(e){}
+  }
+
+  function logEvent(kind, detail){
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    const ss = String(d.getSeconds()).padStart(2,'0');
+    logEntries.push(hh+':'+mm+':'+ss+' '+kind+(detail ? ' ' + detail : ''));
+    if(logEntries.length > LOG_MAX) logEntries.splice(0, logEntries.length - LOG_MAX);
+    logSave();
+    if(logOverlay.style.display === 'flex') renderLog();
+  }
+
+  function renderLog(){
+    logBody.textContent = logEntries.length
+      ? logEntries.join('\n')
+      : 'Journal vide. Laisse l\'app tourner, puis reviens ici après le blocage.';
+    logBody.scrollTop = logBody.scrollHeight;
+  }
+
+  logBtn.addEventListener('click', function(){
+    logOverlay.style.display = 'flex';
+    renderLog();
+  });
+  logCloseBtn.addEventListener('click', function(){ logOverlay.style.display = 'none'; });
+  logClearBtn.addEventListener('click', function(){
+    logEntries = []; logSave(); renderLog();
+  });
+  logCopyBtn.addEventListener('click', function(){
+    const txt = logEntries.join('\n');
+    const done = function(){
+      logCopyBtn.textContent = 'COPIÉ';
+      setTimeout(function(){ logCopyBtn.textContent = 'COPIER'; }, 1500);
+    };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(done).catch(function(){ fallbackCopy(txt, done); });
+    } else {
+      fallbackCopy(txt, done);
+    }
+  });
+
+  function fallbackCopy(txt, done){
+    // Repli pour les contextes ou l'API presse-papiers est indisponible :
+    // on selectionne le texte du journal pour une copie manuelle.
+    try {
+      const r = document.createRange();
+      r.selectNodeContents(logBody);
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(r);
+      document.execCommand('copy');
+      done();
+    } catch(e){}
+  }
+
+  logEvent('DEMARRAGE', 'app ouverte');
   const mapBtn = document.getElementById('map-btn');
   const mapOverlay = document.getElementById('map-overlay');
   const mapCloseBtn = document.getElementById('map-close-btn');
@@ -1916,16 +2006,29 @@
   let lastRealFixAt = null;   // derniere position REELLEMENT recue, pour l'affichage
   let watchdogTimer = null;
   let watchRestarts = 0;
+  let fixCount = 0;
+  let lastFixLogAt = 0;
   const WATCHDOG_STALE_MS = 30000;   // sans position depuis 30 s -> on relance
   const WATCHDOG_TICK_MS = 5000;
 
   function startWatchdog(){
     if(watchdogTimer !== null) return;
+    let lastTickAt = Date.now();
     watchdogTimer = setInterval(function(){
+      const now = Date.now();
+      // Un ecart bien superieur a la periode prevue signifie que la page
+      // elle-meme a ete gelee par le systeme : c'est une cause de blocage
+      // radicalement differente d'un flux GPS mort, d'ou la trace distincte.
+      const drift = now - lastTickAt;
+      if(drift > WATCHDOG_TICK_MS * 3){
+        logEvent('PAGE GELEE', Math.round(drift/1000)+' s sans execution');
+      }
+      lastTickAt = now;
       updateSignalTag();
       if(lastFixAt === null) return;
-      if(Date.now() - lastFixAt > WATCHDOG_STALE_MS){
+      if(now - lastFixAt > WATCHDOG_STALE_MS){
         watchRestarts++;
+        logEvent('FLUX MUET', Math.round((now-lastFixAt)/1000)+' s sans position -> relance '+watchRestarts);
         restartWatch();
       }
     }, WATCHDOG_TICK_MS);
@@ -1967,8 +2070,17 @@
     watchId = navigator.geolocation.watchPosition(function(pos){
       lastFixAt = Date.now();
       lastRealFixAt = lastFixAt;
+      fixCount++;
       updateSignalTag();
       const lat = pos.coords.latitude, lon = pos.coords.longitude;
+      // Journal allege : une ligne toutes les 10 s suffit a reconstituer la
+      // chronologie sans noyer le journal a chaque position.
+      if(lastFixAt - lastFixLogAt > 10000){
+        lastFixLogAt = lastFixAt;
+        logEvent('FIX', '#'+fixCount+' '+lat.toFixed(5)+','+lon.toFixed(5)
+          +' v='+(pos.coords.speed===null||pos.coords.speed===undefined ? 'null' : (pos.coords.speed*3.6).toFixed(0)+'kmh')
+          +' prec='+(pos.coords.accuracy===undefined ? '?' : Math.round(pos.coords.accuracy)+'m'));
+      }
       posVal.textContent = formatLatLon(lat, lon);
       lastKnownLat = lat; lastKnownLon = lon;
       if(mapOverlay.style.display === 'flex' && mapMode === null){
@@ -2015,6 +2127,10 @@
       // l'acquisition du GPS (frequent en mode avion, sans assistance A-GPS) :
       // watchPosition continue de chercher tout seul, on affiche donc l'etat
       // de recherche plutot qu'une erreur qui laisserait croire a un blocage.
+      const codeName = err.code === err.PERMISSION_DENIED ? 'PERMISSION_REFUSEE'
+        : err.code === err.POSITION_UNAVAILABLE ? 'POSITION_INDISPONIBLE'
+        : err.code === err.TIMEOUT ? 'DELAI_DEPASSE' : 'CODE_'+err.code;
+      logEvent('ERREUR GPS', codeName + (err.message ? ' — '+err.message : ''));
       if(err.code === err.PERMISSION_DENIED){
         posVal.textContent = 'refusé';
         speedVal.textContent = 'refusé';
@@ -2032,6 +2148,7 @@
   // Un retour au premier plan est le moment le plus probable d'un flux mort
   // (la page vient d'etre degelee) : on relance sans attendre le chien de garde.
   document.addEventListener('visibilitychange', function(){
+    logEvent('VISIBILITE', document.visibilityState);
     if(document.visibilityState === 'visible' && watchId !== null
        && lastFixAt !== null && Date.now() - lastFixAt > WATCHDOG_STALE_MS){
       watchRestarts++;
@@ -2049,11 +2166,16 @@
     if(!('wakeLock' in navigator)) return;
     try {
       wakeLock = await navigator.wakeLock.request('screen');
-      wakeLock.addEventListener('release', function(){ wakeLock = null; });
+      logEvent('VERROU ECRAN', 'accorde');
+      wakeLock.addEventListener('release', function(){
+        wakeLock = null;
+        logEvent('VERROU ECRAN', 'relache par le systeme');
+      });
     } catch(e){
       // Refus du navigateur (batterie faible, onglet en arriere-plan) :
       // l'app continue de fonctionner, simplement sans garantie de veille.
       wakeLock = null;
+      logEvent('VERROU ECRAN', 'refuse — ' + (e && e.message ? e.message : 'raison inconnue'));
     }
   }
 
