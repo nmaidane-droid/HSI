@@ -257,6 +257,10 @@
     <div class="label">POSITION</div>
     <div class="value small" id="pos-val" style="line-height:1.9;white-space:pre-line;">—</div>
   </div>
+  <div class="data-cell">
+    <div class="label">SIGNAL</div>
+    <div class="value small" id="signal-val">—</div>
+  </div>
 </div>
 
 <div id="map-overlay" style="display:none; position:fixed; inset:0; background:#0c0d0e; z-index:1000; flex-direction:column;">
@@ -1234,6 +1238,7 @@
   const cardinalVal = document.getElementById('cardinal-val');
   const posVal = document.getElementById('pos-val');
   const speedVal = document.getElementById('speed-val');
+  const signalVal = document.getElementById('signal-val');
   const mapBtn = document.getElementById('map-btn');
   const mapOverlay = document.getElementById('map-overlay');
   const mapCloseBtn = document.getElementById('map-close-btn');
@@ -1901,13 +1906,68 @@
 
   let lastKnownLat = null, lastKnownLon = null;
 
+  // Chien de garde du flux GPS. Sur Android le flux watchPosition peut mourir
+  // silencieusement au bout de quelques minutes (surtout sans reseau, ou seul
+  // le GPS alimente le fournisseur de position) : la page reste vivante mais
+  // plus aucune position n'arrive, et tout se fige sans message d'erreur.
+  // On surveille donc l'age de la derniere position et on relance le flux.
+  let watchId = null;
+  let lastFixAt = null;       // base du chien de garde (decalee a chaque relance)
+  let lastRealFixAt = null;   // derniere position REELLEMENT recue, pour l'affichage
+  let watchdogTimer = null;
+  let watchRestarts = 0;
+  const WATCHDOG_STALE_MS = 30000;   // sans position depuis 30 s -> on relance
+  const WATCHDOG_TICK_MS = 5000;
+
+  function startWatchdog(){
+    if(watchdogTimer !== null) return;
+    watchdogTimer = setInterval(function(){
+      updateSignalTag();
+      if(lastFixAt === null) return;
+      if(Date.now() - lastFixAt > WATCHDOG_STALE_MS){
+        watchRestarts++;
+        restartWatch();
+      }
+    }, WATCHDOG_TICK_MS);
+  }
+
+  function restartWatch(){
+    if(watchId !== null){
+      try { navigator.geolocation.clearWatch(watchId); } catch(e){}
+      watchId = null;
+    }
+    // On repart d'une base saine : sans ce decalage, le chien de garde
+    // relancerait en boucle tant que la premiere position du nouveau flux
+    // n'est pas arrivee.
+    lastFixAt = Date.now();
+    requestLocation();
+  }
+
+  function updateSignalTag(){
+    if(!signalVal) return;
+    let txt;
+    if(lastRealFixAt === null){
+      txt = 'aucune position';
+    } else {
+      const age = Math.round((Date.now() - lastRealFixAt)/1000);
+      txt = 'position il y a ' + age + ' s';
+    }
+    txt += wakeLock ? ' · écran verrouillé' : ' · écran non verrouillé';
+    if(watchRestarts > 0) txt += ' · ' + watchRestarts + ' relance' + (watchRestarts>1?'s':'');
+    signalVal.textContent = txt;
+  }
+
   function requestLocation(){
     if(!('geolocation' in navigator)){
       posVal.textContent = 'indisponible';
       speedVal.textContent = 'indisponible';
       return;
     }
-    navigator.geolocation.watchPosition(function(pos){
+    startWatchdog();
+    watchId = navigator.geolocation.watchPosition(function(pos){
+      lastFixAt = Date.now();
+      lastRealFixAt = lastFixAt;
+      updateSignalTag();
       const lat = pos.coords.latitude, lon = pos.coords.longitude;
       posVal.textContent = formatLatLon(lat, lon);
       lastKnownLat = lat; lastKnownLon = lon;
@@ -1968,6 +2028,16 @@
       }
     }, { enableHighAccuracy:true, maximumAge:2000, timeout:60000 });
   }
+
+  // Un retour au premier plan est le moment le plus probable d'un flux mort
+  // (la page vient d'etre degelee) : on relance sans attendre le chien de garde.
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible' && watchId !== null
+       && lastFixAt !== null && Date.now() - lastFixAt > WATCHDOG_STALE_MS){
+      watchRestarts++;
+      restartWatch();
+    }
+  });
 
   // Verrou d'ecran. Quand l'ecran s'eteint, Chrome Android suspend la page et
   // coupe watchPosition : position et vitesse se figent (typiquement apres le
