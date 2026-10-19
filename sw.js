@@ -1,5 +1,5 @@
 // À incrémenter (hsi-v2, hsi-v3, ...) à chaque modification de index.html
-const VERSION = 'hsi-v6';
+const VERSION = 'hsi-v8';
 const CACHE_NAME = 'hsi-cache-' + VERSION;
 
 // Leaflet vient d'un CDN externe : on le met en cache lors de la premiere

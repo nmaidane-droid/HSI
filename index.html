@@ -216,6 +216,7 @@
 <div class="header">
   <span class="title">BOUSSOLE — HSI NUMÉRIQUE</span>
   <span class="status" id="sensor-tag">CAPTEUR INACTIF</span>
+  <span id="version-tag" style="font-size:10px; color:#5a5e61; font-family:'SF Mono','Roboto Mono',monospace; margin-left:8px;"></span>
 </div>
 
 <div class="instrument-wrap">
@@ -1328,7 +1329,15 @@
     } catch(e){}
   }
 
-  logEvent('DEMARRAGE', 'app ouverte');
+  // Numero de version : a incrementer a chaque livraison. Permet de verifier
+  // d'un coup d'oeil quelle version tourne reellement sur l'appareil, au lieu
+  // de deduire du journal si un correctif est deploye ou non.
+  const APP_VERSION = 8;
+  logEvent('DEMARRAGE', 'app ouverte — version ' + APP_VERSION);
+  (function(){
+    const vt = document.getElementById('version-tag');
+    if(vt) vt.textContent = 'v' + APP_VERSION;
+  })();
   const mapBtn = document.getElementById('map-btn');
   const mapOverlay = document.getElementById('map-overlay');
   const mapCloseBtn = document.getElementById('map-close-btn');
